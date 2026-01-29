@@ -1,0 +1,23 @@
+# Version Control
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Secrets
+.env
+.env*
+
+# Local Build Artifacts
+bin/
+vendor/
+polaris
+*.exe
+*.md
+
+# IDEs
+.vscode/
+.idea/

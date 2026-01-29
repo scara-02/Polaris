@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"log/slog"
 	"math"
 	"sort"
@@ -36,15 +37,12 @@ func (e *InMemoryEngine) UpdateDriverLocation(update entity.LocationUpdate) erro
 
 	driver, exists := e.drivers[update.DriverID]
 	if exists {
-        // 1. Construct the OLD point using the data we currently have in memory
         oldPoint := quadtree.Point{
             Lat:  driver.Lat,
             Lon:  driver.Lon,
             Data: driver.ID,
         }
         
-        // 2. Remove the OLD point from the tree
-        // If we don't do this, the tree keeps both the old and new location!
         e.qt.Remove(oldPoint)
     } else {
         e.logger.Debug("registering new driver", "driver_id", update.DriverID)
@@ -85,6 +83,25 @@ func (e *InMemoryEngine) FindNearestDrivers(lat, lon float64, k int) ([]entity.D
 		return candidates[:k], nil
 	}
 	return candidates, nil
+}
+
+
+func (e *InMemoryEngine) BookDriver(driverID string) error {
+	e.mu.Lock()        
+	defer e.mu.Unlock() 
+	driver, exists := e.drivers[driverID]
+	if !exists {
+		return fmt.Errorf("driver not found")
+	}
+
+	if driver.Status != entity.DriverAvailable {
+		return fmt.Errorf("driver is already booked or offline")
+	}
+
+	driver.Status = entity.DriverBooked
+	e.logger.Info("driver booked successfully", "driver_id", driverID)
+	
+	return nil
 }
 
 func distance(x1, y1, x2, y2 float64) float64 {

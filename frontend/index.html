@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Polaris: Chennai Live Traffic</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; }
+        #sidebar { width: 320px; padding: 20px; background: #f8f9fa; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        #map { flex-grow: 1; }
+        
+        h2 { margin-top: 0; color: #2c3e50; }
+        .control-group { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        
+        button { width: 100%; padding: 12px; margin-top: 10px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; transition: 0.2s; }
+        .btn-primary { background-color: #3498db; color: white; }
+        .btn-primary:hover { background-color: #2980b9; }
+        .btn-danger { background-color: #e74c3c; color: white; }
+        
+        .log { font-size: 11px; color: #555; flex-grow: 1; overflow-y: auto; background: white; padding: 10px; border: 1px solid #eee; border-radius: 5px; font-family: monospace; }
+        .log div { margin-bottom: 4px; border-bottom: 1px solid #f0f0f0; padding-bottom: 2px; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>🚀 Polaris Engine</h2>
+    
+    <div class="control-group">
+        <strong>Mode Selection:</strong><br>
+        <div style="margin-top: 8px;">
+            <label><input type="radio" name="mode" value="spawn" checked> Spawn Driver (Click)</label><br>
+            <label><input type="radio" name="mode" value="find"> Request Ride (Click)</label>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <strong> Simulation Control:</strong>
+        <button class="btn-primary" onclick="simulateChennaiTraffic()">Spawn 10 Drivers</button>
+        <button class="btn-danger" onclick="clearMap()">Reset Map</button>
+    </div>
+    
+    <h3> Server Logs</h3>
+    <div id="logs" class="log"></div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    // 1. Initialize Map centered on Chennai (T. Nagar)
+    const CHENNAI_CENTER = [13.0418, 80.2341];
+    const map = L.map('map').setView(CHENNAI_CENTER, 14);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let drivers = [];
+    let userMarker = null;
+    let matchLines = [];
+
+    // 2. Handle Map Clicks (Manual Interaction)
+    map.on('click', function(e) {
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+
+        if (mode === 'spawn') {
+            spawnDriverBot(lat, lon);
+        } else {
+            findRide(lat, lon);
+        }
+    });
+
+    // 3. AUTO-SIMULATION: Spawn 10 drivers around Chennai
+    function simulateChennaiTraffic() {
+        log("🚀 Starting Traffic Simulation...");
+        const count = 10;
+        
+        for (let i = 0; i < count; i++) {
+            // Generate random offset from center
+            // 0.02 degrees is roughly 2km
+            const latOffset = (Math.random() - 0.5) * 0.04; 
+            const lonOffset = (Math.random() - 0.5) * 0.04;
+            
+            const startLat = CHENNAI_CENTER[0] + latOffset;
+            const startLon = CHENNAI_CENTER[1] + lonOffset;
+
+            // Spawn with a slight delay so they don't all appear instantly
+            setTimeout(() => {
+                spawnDriverBot(startLat, startLon);
+            }, i * 200);
+        }
+    }
+
+    // 4. WebSocket Driver Logic
+    function spawnDriverBot(startLat, startLon) {
+        const id = "D-" + Math.floor(Math.random() * 10000);
+        
+        const socket = new WebSocket("ws://localhost:6080/ws/driver");
+        
+        const marker = L.marker([startLat, startLon]).addTo(map)
+            .bindPopup(`<b>🚖 ${id}</b><br>Live`).openPopup();
+        drivers.push(marker);
+
+        socket.onopen = () => {
+            log(`🔌 ${id} connected`);
+            
+            // Randomize driving characteristics
+            let angle = Math.random() * Math.PI * 2; 
+            const speed = 0.0001 + (Math.random() * 0.0001);
+            const turnRate = 0.05;
+
+            // Movement Loop
+            setInterval(() => {
+                if (socket.readyState !== WebSocket.OPEN) return;
+
+                angle += (Math.random() - 0.5) * turnRate; // Wiggle direction
+                const newLat = marker.getLatLng().lat + Math.sin(angle) * speed;
+                const newLon = marker.getLatLng().lng + Math.cos(angle) * speed;
+
+                marker.setLatLng([newLat, newLon]);
+
+                // Send to Server
+                socket.send(JSON.stringify({
+                    driver_id: id,
+                    lat: newLat,
+                    lon: newLon
+                }));
+                
+            }, 1000); //  every 1s
+        };
+
+        socket.onerror = () => log(`⚠️ Connection Error for ${id}`);
+    }
+
+    // 5. Rider Search
+    async function findRide(lat, lon) {
+        matchLines.forEach(line => map.removeLayer(line));
+        matchLines = [];
+
+        log(`🔍 Requesting ride...`);
+
+        try {
+            const res = await fetch(`http://localhost:6080/ride/match?lat=${lat}&lon=${lon}`);
+            const data = await res.json();
+
+            if (data.matches && data.matches.length > 0) {
+                log(` Found ${data.matches.length} drivers!`);
+                
+                data.matches.forEach(d => {
+                    // Draw Line
+                    const line = L.polyline([[lat, lon], [d.Lat, d.Lon]], { 
+                        color: '#2ecc71', dashArray: '10, 10' 
+                    }).addTo(map);
+                    matchLines.push(line);
+
+                    line.bindPopup(`
+                        <b>Driver ${d.ID}</b><br>
+                        ETA: 2 mins<br>
+                        <button onclick="bookDriver('${d.ID}')" style="background:green; color:white;">
+                            Book Now
+                        </button>
+                    `).openPopup();
+                });
+            } else {
+                log("No drivers found.");
+            }
+        } catch (err) {
+            log(" API Error");
+        }
+    }
+
+    // NEW: Book Driver Function
+    async function bookDriver(id) {
+        log(`⏳ Attempting to book ${id}...`);
+        
+        try {
+            const res = await fetch('http://localhost:6080/ride/book', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ driver_id: id })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                log(`🎉 SUCCESS! Booked Driver ${id}`);
+                alert(`Ride Confirmed with ${id}`);
+                
+                // Visual Hack: Find the marker and turn it RED (Simulated state update)
+                // In a real app, the WebSocket would push this update back to us.
+                drivers.forEach(marker => {
+                    if (marker.getPopup().getContent().includes(id)) {
+                        marker.setIcon(new L.Icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/markers-default/red.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        }));
+                    }
+                });
+            } else {
+                log(` FAILED: ${data.error}`);
+                alert(`Booking Failed: ${data.error}`);
+            }
+        } catch (err) {
+            log("❌ Network Error");
+        }
+    }
+
+
+
+    function log(msg) {
+        const div = document.getElementById('logs');
+        const time = new Date().toLocaleTimeString().split(' ')[0];
+        div.innerHTML = `<div><span style="color:#888">[${time}]</span> ${msg}</div>` + div.innerHTML;
+    }
+
+    function clearMap() {
+        location.reload();
+    }
+</script>
+
+</body>
+</html>

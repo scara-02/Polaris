@@ -1,0 +1,26 @@
+# Secrets (CRITICAL)
+.env
+.env.local
+
+# Binaries
+/bin/
+/dist/
+polaris  
+*.exe
+*.dll
+*.so
+
+# Dependencies
+vendor/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Docker
+docker-compose.override.yml

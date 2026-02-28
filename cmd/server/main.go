@@ -17,27 +17,55 @@ import (
 	"github.com/Akashpg-M/polaris/internal/adapter/handler"
 	"github.com/Akashpg-M/polaris/internal/config"
 	"github.com/Akashpg-M/polaris/internal/core/ports"
+	"github.com/Akashpg-M/polaris/internal/adapter/repository"
 )
 
 func main() {
 	// 1. Load Config (From .env or Environment)
-	cfg := config.Load()
+	// cfg := config.Load()
 
-	// 2. Setup Logger
+	// // 2. Setup Logger
+	// logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// logger.Info("starting polaris engine", 
+	// 	"version", "v0.6-env", 
+	// 	"env", cfg.AppEnv, 
+	// 	"port", cfg.Port,
+	// )
+
+////////////////////////////////////////////////////////////
+	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger.Info("starting polaris engine", 
-		"version", "v0.6-env", 
-		"env", cfg.AppEnv, 
-		"port", cfg.Port,
+	
+	// 1. Connect to Postgres
+	logger.Info("connecting to database...", "url", cfg.DBUrl)
+	pgRepo, err := repository.NewPostgresRepo(cfg.DBUrl)
+	if err != nil {
+			logger.Error("postgres init failed", "error", err)
+			os.Exit(1)
+	}
+
+	// 2. Connect to Redis (NEW)
+	logger.Info("connecting to redis...", "url", cfg.RedisUrl)
+	redisRepo, err := repository.NewRedisRepo(cfg.RedisUrl)
+	if err != nil {
+			logger.Error("redis init failed", "error", err)
+			os.Exit(1)
+	}
+
+	// 3. Init Engine with BOTH Repos
+	var matcher ports.MatchingEngine = engine.NewInMemoryEngine(
+			cfg.MapWidth, 
+			cfg.MapHeight, 
+			logger, 
+			pgRepo,    // For Hydration & Booking
+			redisRepo, // For Location & Locks
 	)
+///////////////////////////////////////////////////////////////
 
 	// Set Gin Mode based on Config
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
-
-	// 3. Initialize Engine
-	var matcher ports.MatchingEngine = engine.NewInMemoryEngine(cfg.MapWidth, cfg.MapHeight, logger)
 
 	// 4. Initialize Handler
 	httpHandler := handler.NewHTTPHandler(matcher)

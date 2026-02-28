@@ -21,6 +21,10 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-
+.docx
 # Docker
 docker-compose.override.yml
+
+architecture plan.docx
+codebase.txt
+VersionizedProgress.docx

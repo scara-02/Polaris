@@ -61,8 +61,9 @@ func getDBUrl() string {
 	return "postgres://" + getEnv("DB_USER", "user") + ":" +
 		getEnv("DB_PASSWORD", "pass") + "@" +
 		getEnv("DB_HOST", "localhost") + ":" +
-		getEnv("DB_PORT", "5432") + "/" +
-		getEnv("DB_NAME", "polaris")
+		getEnv("DB_PORT", "5433") + "/" +
+		getEnv("DB_NAME", "polaris") +
+		"?sslmode=disable"
 }
 
 func getRedisUrl() string {

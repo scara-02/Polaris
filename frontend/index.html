@@ -471,6 +471,39 @@
     }
 
     // 4. Spatial Matching API
+    // async function findRide(lat, lon) {
+    //     matchLines.forEach(line => map.removeLayer(line));
+    //     matchLines = [];
+    //     log(`[Query] Scanning coordinates: ${lat.toFixed(4)}, ${lon.toFixed(4)}...`);
+
+    //     try {
+    //         const res = await fetch(`http://localhost:6080/ride/match?lat=${lat}&lon=${lon}`);
+    //         const data = await res.json();
+
+    //         if (data.matches && data.matches.length > 0) {
+    //             log(`[Match] Located ${data.matches.length} available vehicles.`);
+                
+    //             data.matches.forEach(d => {
+    //                 const line = L.polyline([[lat, lon], [d.Lat, d.Lon]], { 
+    //                     color: '#3b82f6', dashArray: '5, 10', weight: 2, opacity: 0.7
+    //                 }).addTo(map);
+    //                 matchLines.push(line);
+
+    //                 line.bindPopup(`
+    //                     <div style="text-align:center;">
+    //                         <b>Asset: ${d.ID}</b><br>
+    //                         Status: Available<br>
+    //                         <button class="popup-btn" onclick="bookDriver('${d.ID}')">Authorize Dispatch</button>
+    //                     </div>
+    //                 `).openPopup();
+    //             });
+    //         } else {
+    //             log(`<span class="error">[Alert] No assets within operational radius.</span>`);
+    //         }
+    //     } catch (err) {
+    //         log(`<span class="error">[Fault] Match engine unresponsive.</span>`);
+    //     }
+    // }
     async function findRide(lat, lon) {
         matchLines.forEach(line => map.removeLayer(line));
         matchLines = [];
@@ -484,16 +517,18 @@
                 log(`[Match] Located ${data.matches.length} available vehicles.`);
                 
                 data.matches.forEach(d => {
-                    const line = L.polyline([[lat, lon], [d.Lat, d.Lon]], { 
+                    // FIXED: Changed d.Lat to d.lat and d.Lon to d.lon
+                    const line = L.polyline([[lat, lon], [d.lat, d.lon]], { 
                         color: '#3b82f6', dashArray: '5, 10', weight: 2, opacity: 0.7
                     }).addTo(map);
                     matchLines.push(line);
 
+                    // FIXED: Changed d.ID to d.id
                     line.bindPopup(`
                         <div style="text-align:center;">
-                            <b>Asset: ${d.ID}</b><br>
+                            <b>Asset: ${d.id}</b><br>
                             Status: Available<br>
-                            <button class="popup-btn" onclick="bookDriver('${d.ID}')">Authorize Dispatch</button>
+                            <button class="popup-btn" onclick="bookDriver('${d.id}')">Authorize Dispatch</button>
                         </div>
                     `).openPopup();
                 });
@@ -501,6 +536,7 @@
                 log(`<span class="error">[Alert] No assets within operational radius.</span>`);
             }
         } catch (err) {
+            console.error(err); // Added this so you can see exact errors in the browser console!
             log(`<span class="error">[Fault] Match engine unresponsive.</span>`);
         }
     }

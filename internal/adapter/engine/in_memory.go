@@ -72,45 +72,6 @@ func (e *InMemoryEngine) runJanitor() {
 	}
 }
 
-// func (e *InMemoryEngine) UpdateDriverLocation(update entity.LocationUpdate) error {
-// 	e.mu.Lock()
-// 	defer e.mu.Unlock()
-
-// 	// 1. Update Memory (RAM)
-// 	driver, exists := e.drivers[update.DriverID]
-// 	if !exists {
-// 		driver = &entity.Driver{ID: update.DriverID, Status: entity.DriverAvailable}
-// 		e.drivers[update.DriverID] = driver
-// 	}
-// 	driver.Lat = update.Lat
-// 	driver.Lon = update.Lon
-// 	driver.UpdatedAt = time.Now()
-
-// 	// 2. Update QuadTree (RAM Index)
-// 	e.qt.Insert(quadtree.Point{Lat: update.Lat, Lon: update.Lon, Data: update.DriverID})
-
-// 	driverID := update.DriverID
-// 	lat := update.Lat
-// 	lon := update.Lon
-
-// 	e.mu.Unlock()
-// 	// 3. Update Redis (Write-Behind Buffer)
-// 	// We run this in a goroutine to not block the WebSocket loop
-// 	go func(id string, lat, lon float64) {
-// 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-// 		defer cancel()
-// 		if err := e.redisRepo.UpdateLocation(ctx, id, lat, lon); err != nil {
-// 			e.logger.Error("failed to push location to redis", "error", err)
-// 		}
-// 	}(driverID, lat, lon)
-
-//     // Note: We REMOVED the Postgres write here.
-//     // We rely on Redis as the buffer now. A separate worker (not implemented here for brevity)
-//     // would ideally dump Redis -> Postgres every 30s.
-
-// 	return nil
-// }
-
 func (e *InMemoryEngine) UpdateDriverLocation(update entity.LocationUpdate) error {
 	e.mu.Lock()
 	defer e.mu.Unlock() // This handles the lock for the entire function

@@ -63,9 +63,10 @@ func getDBUrl() string {
 		getEnv("DB_HOST", "localhost") + ":" +
 		getEnv("DB_PORT", "5433") + "/" +
 		getEnv("DB_NAME", "polaris") +
-		"?sslmode=disable"
+		"?sslmode=disable"   // enabled due to some docker desktop issue,
 }
 
 func getRedisUrl() string {
-	return getEnv("REDIS_HOST", "localhost") + ":" + getEnv("REDIS_PORT", "6379")
+	return getEnv("REDIS_HOST", "localhost") + ":" + 
+				 getEnv("REDIS_PORT", "6379")
 }

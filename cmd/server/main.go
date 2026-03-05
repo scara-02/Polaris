@@ -31,10 +31,13 @@ func main() {
 	// 	"env", cfg.AppEnv, 
 	// 	"port", cfg.Port,
 	// )
-
-////////////////////////////////////////////////////////////
 	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger.Info("starting polaris engine", 
+		"version", "v0.6-env", 
+		"env", cfg.AppEnv, 
+		"port", cfg.Port,
+	)
 	
 	// 1. Connect to Postgres
 	logger.Info("connecting to database...", "url", cfg.DBUrl)
@@ -60,7 +63,6 @@ func main() {
 			pgRepo,    // For Hydration & Booking
 			redisRepo, // For Location & Locks
 	)
-///////////////////////////////////////////////////////////////
 
 	// Set Gin Mode based on Config
 	if cfg.AppEnv == "production" {
@@ -124,3 +126,33 @@ func main() {
 	}
 	logger.Info("server exited gracefully")
 }
+
+
+// Flow Visualization:
+
+// main()
+//  ├── Create PostgresRepo
+//  ├── Create RedisRepo
+//  ├── Create InMemoryEngine (concrete struct)
+//  ├── Store it inside interface variable (matcher)
+//  ├── Inject matcher into handler
+//  ├── Start HTTP server
+
+// Request comes in
+//     ↓
+// Handler calls engine interface
+//     ↓
+// Go dispatches to InMemoryEngine method
+//     ↓
+// Redis / Postgres get used internally
+
+
+// Issue:
+// If tomorrow you deploy:
+// 3 Polaris servers
+// Each has its own:
+// InMemoryEngine.drivers map
+// What happens if:
+// Server A updates driver location
+// Server B receives ride booking
+// Will they see the same memory state?

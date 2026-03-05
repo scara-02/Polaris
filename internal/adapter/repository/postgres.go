@@ -38,6 +38,7 @@ func NewPostgresRepo(dsn string) (*PostgresRepo, error) {
 		lon DOUBLE PRECISION NOT NULL,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
+	
 	CREATE TABLE IF NOT EXISTS trips (
 		id SERIAL PRIMARY KEY,
 		driver_id VARCHAR(50) REFERENCES drivers(id),

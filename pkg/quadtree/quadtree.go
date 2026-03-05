@@ -95,13 +95,18 @@ func (n *Node) insert(p Point) bool {
 
 func (n *Node) remove(p Point) bool {
     // 1. Optimization: If point is not in my box, don't bother looking inside
-    if !n.Bounds.Contains(p) {
+    // p.Lat >= b.X &&
+		// p.Lat <= b.X+b.Width &&
+		// p.Lon >= b.Y &&
+		// p.Lon <= b.Y+b.Height
+		if !n.Bounds.Contains(p) {
         return false
     }
 
     // 2. Check the points I am holding directly
     for i, point := range n.Points {
         // We match by ID (Data) to be sure it's the right driver
+				
         if point.Data == p.Data && point.Lat == p.Lat && point.Lon == p.Lon {
             // Delete Trick: Replace the found item with the last item in the list
             // Then chop off the last item. This is O(1) and faster than shifting arrays.
@@ -152,8 +157,9 @@ func (n *Node) query(rangeBounds Bounds, found *[]Point) {
 
 func (b Bounds) Contains(p Point) bool {
 	return p.Lat >= b.X && p.Lat <= b.X+b.Width && p.Lon >= b.Y && p.Lon <= b.Y+b.Height
-}
+ }
 
 func (b Bounds) Intersects(other Bounds) bool {
 	return !(other.X > b.X+b.Width || other.X+other.Width < b.X || other.Y > b.Y+b.Height || other.Y+other.Height < b.Y)
 }
+

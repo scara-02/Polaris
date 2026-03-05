@@ -509,6 +509,7 @@
         matchLines = [];
         log(`[Query] Scanning coordinates: ${lat.toFixed(4)}, ${lon.toFixed(4)}...`);
 
+
         try {
             const res = await fetch(`http://localhost:6080/ride/match?lat=${lat}&lon=${lon}`);
             const data = await res.json();
@@ -517,18 +518,34 @@
                 log(`[Match] Located ${data.matches.length} available vehicles.`);
                 
                 data.matches.forEach(d => {
-                    // FIXED: Changed d.Lat to d.lat and d.Lon to d.lon
+                    // const line = L.polyline([[lat, lon], [d.lat, d.lon]], { 
+                    //     color: '#3b82f6', dashArray: '5, 10', weight: 2, opacity: 0.7
+                    // }).addTo(map);
+                    // matchLines.push(line);
+                    // line.bindPopup(`
+                    //     <div style="text-align:center;">
+                    //         <b>Asset: ${d.id}</b><br>
+                    //         Status: Available<br>
+                    //         <button class="popup-btn" onclick="bookDriver('${d.id}')">Authorize Dispatch</button>
+                    //     </div>
+                    // `).openPopup();
+
+                    const etaMins = Math.round(d.eta_seconds / 60);
+                    const distKm = (d.route_distance_meters / 1000).toFixed(1);
+
                     const line = L.polyline([[lat, lon], [d.lat, d.lon]], { 
-                        color: '#3b82f6', dashArray: '5, 10', weight: 2, opacity: 0.7
+                        color: '#2ecc71', weight: 4, dashArray: '10, 10' 
                     }).addTo(map);
                     matchLines.push(line);
 
-                    // FIXED: Changed d.ID to d.id
                     line.bindPopup(`
                         <div style="text-align:center;">
-                            <b>Asset: ${d.id}</b><br>
-                            Status: Available<br>
-                            <button class="popup-btn" onclick="bookDriver('${d.id}')">Authorize Dispatch</button>
+                            <b>🚖 Driver ${d.id}</b><br>
+                            <span style="color:#e67e22; font-size: 16px;"><b>${etaMins} Min</b> away</span><br>
+                            <small style="color:#7f8c8d;">${distKm} km drive</small><br><br>
+                            <button onclick="bookDriver('${d.id}')" style="background:#2ecc71; color:white; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; width:100%;">
+                                Book Ride
+                            </button>
                         </div>
                     `).openPopup();
                 });

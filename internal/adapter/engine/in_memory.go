@@ -12,6 +12,7 @@ import (
 	"github.com/Akashpg-M/polaris/internal/adapter/repository"
 	"github.com/Akashpg-M/polaris/internal/core/entity"
 	"github.com/Akashpg-M/polaris/pkg/quadtree"
+	"github.com/Akashpg-M/polaris/internal/adapter/osrm"
 )
 
 type InMemoryEngine struct {
@@ -21,20 +22,27 @@ type InMemoryEngine struct {
 	logger    *slog.Logger
 	pgRepo    *repository.PostgresRepo // Permanent Storage
 	redisRepo *repository.RedisRepo    // Fast Buffer & Locks
+	osrmClient *osrm.Client
 }
 
-func NewInMemoryEngine(width, height float64, logger *slog.Logger, pg *repository.PostgresRepo, rdb *repository.RedisRepo) *InMemoryEngine {
+func NewInMemoryEngine(
+	width, height float64, 
+	logger *slog.Logger, 
+	pg *repository.PostgresRepo, 
+	rdb *repository.RedisRepo,
+	osrmClient *osrm.Client,
+) *InMemoryEngine {
 	e := &InMemoryEngine{
 		qt:        quadtree.NewSafeQuadTree(quadtree.Bounds{X: 0, Y: 0, Width: width, Height: height}),
 		drivers:   make(map[string]*entity.Driver),
 		logger:    logger,
 		pgRepo:    pg,
 		redisRepo: rdb,
+		osrmClient: osrmClient,
 	}
 
 	// 1. Restore State from DB
 	e.hydrate()
-
 	// 2. Start Background Janitor (Cleanup Stale Drivers)
 	go e.runJanitor()
 
@@ -167,9 +175,38 @@ func (e *InMemoryEngine) hydrate() {
 }
 
 // // we do an general Delete-then-Insert Approach - but in real time systems this is costly
-func (e *InMemoryEngine) FindNearestDrivers(lat, lon float64, k int) ([]entity.Driver, error) {
-	e.logger.Debug("executing spatial search", "lat", lat, "lon", lon)
+// func (e *InMemoryEngine) FindNearestDrivers(lat, lon float64, k int) ([]entity.Driver, error) {
+// 	e.logger.Debug("executing spatial search", "lat", lat, "lon", lon)
 
+// 	searchRadius := 50.0
+// 	bounds := quadtree.Bounds{X: lat - searchRadius, Y: lon - searchRadius, Width: searchRadius * 2, Height: searchRadius * 2}
+// 	points := e.qt.Search(bounds)
+
+// 	var candidates []entity.Driver
+// 	e.mu.RLock()
+// 	for _, p := range points {
+// 		driver, exists := e.drivers[p.Data]
+// 		if exists && driver.Status == entity.DriverAvailable {
+// 			candidates = append(candidates, *driver)
+// 		}
+// 	}
+// 	e.mu.RUnlock()
+
+// 	sort.Slice(candidates, func(i, j int) bool {
+// 		return distance(lat, lon, candidates[i].Lat, candidates[i].Lon) < distance(lat, lon, candidates[j].Lat, candidates[j].Lon)
+// 	})
+
+// 	if len(candidates) > k {
+// 		return candidates[:k], nil
+// 	}
+// 	return candidates, nil
+// }
+
+func (e *InMemoryEngine) FindNearestDrivers(lat, lon float64, k int) ([]entity.Driver, error) {
+	e.logger.Debug("executing two-stage spatial search", "lat", lat, "lon", lon)
+
+	// STAGE 1: THE FILTER (RAM)
+	// Find top 50 straight-line candidates to avoid overloading OSRM
 	searchRadius := 50.0
 	bounds := quadtree.Bounds{X: lat - searchRadius, Y: lon - searchRadius, Width: searchRadius * 2, Height: searchRadius * 2}
 	points := e.qt.Search(bounds)
@@ -184,15 +221,45 @@ func (e *InMemoryEngine) FindNearestDrivers(lat, lon float64, k int) ([]entity.D
 	}
 	e.mu.RUnlock()
 
+	// Sort by straight-line distance and slice to top 50
 	sort.Slice(candidates, func(i, j int) bool {
 		return distance(lat, lon, candidates[i].Lat, candidates[i].Lon) < distance(lat, lon, candidates[j].Lat, candidates[j].Lon)
 	})
-
-	if len(candidates) > k {
-		return candidates[:k], nil
+	
+	limit := 50
+	if len(candidates) > limit {
+		candidates = candidates[:limit]
 	}
-	return candidates, nil
+
+	if len(candidates) == 0 {
+		return candidates, nil
+	}
+
+	// STAGE 2: THE REFINER (OSRM)
+	// Get real-world driving times
+	refinedCandidates, err := e.osrmClient.CalculateETAs(lat, lon, candidates)
+	if err != nil {
+		e.logger.Error("osrm failed, falling back to straight-line", "error", err)
+		// Fallback: Return straight-line results if OSRM crashes
+		if len(candidates) > k {
+			return candidates[:k], nil
+		}
+		return candidates, nil
+	}
+
+	// STAGE 3: THE SORTER
+	// Sort by ETA (Time) instead of straight-line distance
+	sort.Slice(refinedCandidates, func(i, j int) bool {
+		return refinedCandidates[i].ETA < refinedCandidates[j].ETA
+	})
+
+	// Return top K
+	if len(refinedCandidates) > k {
+		return refinedCandidates[:k], nil
+	}
+	return refinedCandidates, nil
 }
+
 
 func distance(x1, y1, x2, y2 float64) float64 {
 	return math.Sqrt(math.Pow(x1-x2, 2) + math.Pow(y1-y2, 2))

@@ -18,7 +18,9 @@ import (
 	"github.com/Akashpg-M/polaris/internal/config"
 	"github.com/Akashpg-M/polaris/internal/core/ports"
 	"github.com/Akashpg-M/polaris/internal/adapter/repository"
+	"github.com/Akashpg-M/polaris/internal/adapter/osrm"
 )
+
 
 func main() {
 	// 1. Load Config (From .env or Environment)
@@ -32,6 +34,9 @@ func main() {
 	// 	"port", cfg.Port,
 	// )
 	cfg := config.Load()
+	osrmClient := osrm.NewClient(cfg.OSRMUrl)
+
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	logger.Info("starting polaris engine", 
 		"version", "v0.6-env", 
@@ -62,6 +67,7 @@ func main() {
 			logger, 
 			pgRepo,    // For Hydration & Booking
 			redisRepo, // For Location & Locks
+			osrmClient,
 	)
 
 	// Set Gin Mode based on Config
@@ -156,3 +162,21 @@ func main() {
 // Server A updates driver location
 // Server B receives ride booking
 // Will they see the same memory state?
+
+
+// What is the current project level:
+// system architecture that mirrors what Uber uses for their "Hot Path."
+// Locations: High-Frequency -> Redis
+// Transactions: High-Value -> Postgres
+// Search: High-Speed -> QuadTree (RAM)
+
+// GPS Update → Geo Index → Match → Lock → Confirm
+
+
+//Next Step:
+// Solve for distibuted system, how can we make it distributed
+// Currently:
+//   Geo index is local memory
+//   Drivers map is local memory
+//   Only locks are distributed
+// So works well for Single Instance but not for Multi instance cluster

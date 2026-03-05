@@ -16,6 +16,7 @@ type Config struct {
 	MapHeight float64
 	DBUrl     string
 	RedisUrl  string
+	OSRMUrl string
 }
 
 func Load() *Config {
@@ -33,6 +34,7 @@ func Load() *Config {
 		LogLevel:  getEnv("LOG_LEVEL", "info"),
 		MapWidth:  getEnvFloat("MAP_WIDTH", 1000.0),
 		MapHeight: getEnvFloat("MAP_HEIGHT", 1000.0),
+		OSRMUrl:   getEnv("OSRM_URL", "http://localhost:5000"),
 		DBUrl:     getDBUrl(),
 		RedisUrl:  getRedisUrl(),
 	}

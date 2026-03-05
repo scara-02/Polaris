@@ -16,6 +16,8 @@ type Driver struct {
 	Lon       float64      `json:"lon" db:"lon"`
 	Status    DriverStatus `json:"status" db:"status"`
 	UpdatedAt time.Time    `json:"updated_at" db:"updated_at"`
+	ETA           float64  `json:"eta_seconds,omitempty"`
+  RouteDistance float64  `json:"route_distance_meters,omitempty"`
 }
 
 type LocationUpdate struct {

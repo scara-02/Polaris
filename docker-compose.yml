@@ -42,5 +42,15 @@ services:
     ports:
       - "${REDIS_PORT}:6379"
 
+  osrm:
+    image: osrm/osrm-backend
+    container_name: polaris_osrm
+    restart: always
+    ports:
+      - "5000:5000"
+    command: "osrm-routed --algorithm mld /data/chennai-metro.osrm"
+    volumes:
+      - ./chennai_map:/data
+
 volumes:
   polaris_pg_data:

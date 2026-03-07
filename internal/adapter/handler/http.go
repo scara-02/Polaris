@@ -38,6 +38,7 @@ func (h *HTTPHandler) UpdateLocation(c *gin.Context) {
 func (h *HTTPHandler) FindMatches(c *gin.Context) {
 	latStr := c.Query("lat")
 	lonStr := c.Query("lon")
+	assetStr := c.Query("asset_type")
 
 	lat, err1 := strconv.ParseFloat(latStr, 64)
 	lon, err2 := strconv.ParseFloat(lonStr, 64)
@@ -47,7 +48,12 @@ func (h *HTTPHandler) FindMatches(c *gin.Context) {
 		return
 	}
 
-	matches, err := h.engine.FindNearestDrivers(lat, lon, 5)
+	var assetReq entity.AssetType = entity.AssetSedan
+	if val, err := strconv.ParseUint(assetStr, 10, 8); err == nil {
+		assetReq = entity.AssetType(val)
+	}
+
+	matches, err := h.engine.FindNearestDrivers(lat, lon, assetReq, 5)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Search failed"})
 		return

@@ -60,7 +60,7 @@ func NewPostgresRepo(dsn string) (*PostgresRepo, error) {
 }
 
 // SaveDriver updates or inserts a driver
-func (r *PostgresRepo) SaveDriver(id string, lat, lon float64, status string) error {
+func (r *PostgresRepo) SaveDriver(id string, lat, lon float64, status string, asset uint8) error {
 	query := `
 		INSERT INTO drivers (id, lat, lon, status, asset_type, updated_at)
 		VALUES ($1, $2, $3, $4, $5, NOW())

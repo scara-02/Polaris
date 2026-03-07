@@ -90,7 +90,7 @@ func main() {
 	// 6. Configure CORS Dynamically
 	corsConfig := cors.Config{
 		AllowOrigins:     []string{"*"}, // In prod, change this to specific domain from config
-		AllowMethods:     []string{"GET", "POST", "PUT", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
@@ -103,6 +103,7 @@ func main() {
 	router.GET("/ride/match", httpHandler.FindMatches)
 	router.POST("/ride/book", httpHandler.BookRide)
 	router.GET("/ws/driver", httpHandler.DriverSocket)
+	router.PATCH("/trip/status", httpHandler.UpdateTripStatus)
 
 	// 8. Start Server using Config Port
 	srv := &http.Server{

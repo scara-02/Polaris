@@ -80,50 +80,50 @@ func (e *InMemoryEngine) runJanitor() {
 	}
 }
 
-func (e *InMemoryEngine) UpdateDriverLocation(update entity.LocationUpdate) error {
-	e.mu.Lock()
-	defer e.mu.Unlock() // This handles the lock for the entire function
+// func (e *InMemoryEngine) UpdateDriverLocation(update entity.LocationUpdate) error {
+// 	e.mu.Lock()
+// 	defer e.mu.Unlock() // This handles the lock for the entire function
 
-	// 1. Update Memory (RAM)
-	driver, exists := e.drivers[update.DriverID]
-	if !exists {
-		driver = &entity.Driver{ID: update.DriverID, Status: entity.DriverAvailable}
-		e.drivers[update.DriverID] = driver
-	}
-	driver.Lat = update.Lat
-	driver.Lon = update.Lon
-	driver.UpdatedAt = time.Now()
+// 	// 1. Update Memory (RAM)
+// 	driver, exists := e.drivers[update.DriverID]
+// 	if !exists {
+// 		driver = &entity.Driver{ID: update.DriverID, Status: entity.DriverAvailable}
+// 		e.drivers[update.DriverID] = driver
+// 	}
+// 	driver.Lat = update.Lat
+// 	driver.Lon = update.Lon
+// 	driver.UpdatedAt = time.Now()
 
-	// 2. Update QuadTree (RAM Index)
-	e.qt.Insert(quadtree.Point{Lat: update.Lat, Lon: update.Lon, Data: update.DriverID})
+// 	// 2. Update QuadTree (RAM Index)
+// 	e.qt.Insert(quadtree.Point{Lat: update.Lat, Lon: update.Lon, Data: update.DriverID})
 
-	// 3. Update Redis (Write-Behind Buffer)
-	// Pass the values directly into the goroutine
-	go func(id string, lat, lon float64) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		if err := e.redisRepo.UpdateLocation(ctx, id, lat, lon); err != nil {
-			e.logger.Error("failed to push location to redis", "error", err)
-		}
-	}(update.DriverID, update.Lat, update.Lon)
+// 	// 3. Update Redis (Write-Behind Buffer)
+// 	// Pass the values directly into the goroutine
+// 	go func(id string, lat, lon float64) {
+// 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+// 		defer cancel()
+// 		if err := e.redisRepo.UpdateLocation(ctx, id, lat, lon); err != nil {
+// 			e.logger.Error("failed to push location to redis", "error", err)
+// 		}
+// 	}(update.DriverID, update.Lat, update.Lon)
 
-	return nil
-}
+// 	return nil
+// }
 
-func (e *InMemoryEngine) BookDriver(driverID string) error {
+
+
+func (e *InMemoryEngine) BookDriver(driverID string) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// 1. Distributed Lock (Redis)
-	// "Hey Redis, I am booking Driver X. Stop anyone else."
 	acquired, err := e.redisRepo.AcquireLock(ctx, driverID)
 	if err != nil {
-		return fmt.Errorf("redis error: %w", err)
+		return 0, fmt.Errorf("redis error: %w", err)
 	}
 	if !acquired {
-		return fmt.Errorf("driver is currently being booked by someone else")
+		return 0, fmt.Errorf("driver is currently being booked by someone else")
 	}
-	// Always release lock when done (even if error happens later)
 	defer e.redisRepo.ReleaseLock(ctx, driverID)
 
 	// 2. Read Memory (SHORT lock)
@@ -131,20 +131,22 @@ func (e *InMemoryEngine) BookDriver(driverID string) error {
 	driver, exists := e.drivers[driverID]
 	if !exists || driver.Status != entity.DriverAvailable {
 		e.mu.RUnlock()
-		return fmt.Errorf("driver unavailable")
+		return 0, fmt.Errorf("driver unavailable")
 	}
-
 	lat := driver.Lat
 	lon := driver.Lon
 	e.mu.RUnlock()
 
 	// 3. Persist to Postgres (NO lock)
 	if err := e.pgRepo.SaveDriver(driverID, lat, lon, string(entity.DriverBooked)); err != nil {
-		return fmt.Errorf("db save failed: %w", err)
+		return 0, fmt.Errorf("db save failed: %w", err)
 	}
 
-	if err := e.pgRepo.CreateTrip(driverID, lat, lon); err != nil {
+	// CAPTURE THE TRIP ID HERE
+	tripID, err := e.pgRepo.CreateTrip(driverID, lat, lon)
+	if err != nil {
 		e.logger.Error("trip recording failed", "error", err)
+		return 0, fmt.Errorf("trip recording failed: %w", err)
 	}
 
 	// 4. Update Memory (SHORT lock)
@@ -154,9 +156,10 @@ func (e *InMemoryEngine) BookDriver(driverID string) error {
 	}
 	e.mu.Unlock()
 
-	e.logger.Info("driver booked", "id", driverID)
-	return nil
+	e.logger.Info("driver booked successfully", "driver_id", driverID, "trip_id", tripID)
+	return tripID, nil
 }
+
 
 // Helper: Hydrate
 func (e *InMemoryEngine) hydrate() {
@@ -212,11 +215,18 @@ func (e *InMemoryEngine) FindNearestDrivers(lat, lon float64, k int) ([]entity.D
 	points := e.qt.Search(bounds)
 
 	var candidates []entity.Driver
+	seen := make(map[string]bool)
+
 	e.mu.RLock()
 	for _, p := range points {
+		if _, alreadySeen := seen[p.Data]; alreadySeen {
+			continue
+		}
+
 		driver, exists := e.drivers[p.Data]
 		if exists && driver.Status == entity.DriverAvailable {
 			candidates = append(candidates, *driver)
+			seen[p.Data] = true
 		}
 	}
 	e.mu.RUnlock()
@@ -260,6 +270,52 @@ func (e *InMemoryEngine) FindNearestDrivers(lat, lon float64, k int) ([]entity.D
 	return refinedCandidates, nil
 }
 
+// ProgressTrip advances the FSM and handles driver release if the trip is over
+func (e *InMemoryEngine) ProgressTrip(tripID int, driverID string, currentStatus, newStatus entity.TripStatus) error {
+	// 1. Validate Transition Rules
+	if !entity.ValidTransition(currentStatus, newStatus) {
+		return fmt.Errorf("invalid transition from %s to %s", currentStatus, newStatus)
+	}
+
+	// 2. Persist to Source of Truth (Postgres) FIRST
+	err := e.pgRepo.UpdateTripStatus(tripID, currentStatus, newStatus)
+	if err != nil {
+		return fmt.Errorf("failed to progress trip: %w", err)
+	}
+
+	// 3. If the trip is terminal (Completed/Canceled), release the driver
+	if newStatus == entity.TripCompleted || newStatus == entity.TripCanceled {
+		// Safely grab current coordinates from RAM
+		e.mu.RLock()
+		driver, exists := e.drivers[driverID]
+		var lat, lon float64
+		if exists {
+			lat = driver.Lat
+			lon = driver.Lon
+		}
+		e.mu.RUnlock()
+
+		// Update DB with actual coordinates, NOT 0,0
+		err = e.pgRepo.SaveDriver(driverID, lat, lon, string(entity.DriverAvailable))
+		if err != nil {
+			e.logger.Error("failed to release driver in db", "driver_id", driverID, "error", err)
+		}
+
+		// Update RAM and reset the Janitor timer!
+		e.mu.Lock()
+		if driver, exists := e.drivers[driverID]; exists {
+			driver.Status = entity.DriverAvailable
+			driver.UpdatedAt = time.Now() // <-- This keeps them alive!
+		}
+		e.mu.Unlock()
+		
+		e.logger.Info("trip terminal state reached, driver released", "trip_id", tripID, "driver_id", driverID)
+	} else {
+		e.logger.Info("trip progressed", "trip_id", tripID, "new_status", newStatus)
+	}
+
+	return nil
+}
 
 func distance(x1, y1, x2, y2 float64) float64 {
 	return math.Sqrt(math.Pow(x1-x2, 2) + math.Pow(y1-y2, 2))

@@ -8,6 +8,7 @@ type Point struct {
 	Lat  float64
 	Lon  float64
 	Data string
+	Asset uint8
 }
 
 type Bounds struct {
@@ -33,11 +34,11 @@ func (sqt *SafeQuadTree) Insert(p Point) {
 	sqt.tree.root.insert(p)
 }
 
-func (sqt *SafeQuadTree) Search(rangeBounds Bounds) []Point {
+func (sqt *SafeQuadTree) Search(rangeBounds Bounds, assetMask uint8) []Point {
 	sqt.mu.RLock()
 	defer sqt.mu.RUnlock()
 	var found []Point
-	sqt.tree.root.query(rangeBounds, &found)
+	sqt.tree.root.query(rangeBounds, assetMask, &found)
 	return found
 }
 
@@ -139,18 +140,18 @@ func (n *Node) subdivide() {
 	n.Divided = true
 }
 
-func (n *Node) query(rangeBounds Bounds, found *[]Point) {
+func (n *Node) query(rangeBounds Bounds, assetMask uint8, found *[]Point) {
 	if !n.Bounds.Intersects(rangeBounds) {
 		return
 	}
 	for _, p := range n.Points {
-		if rangeBounds.Contains(p) {
+		if rangeBounds.Contains(p) && (p.Asset&assetMask) > 0 {
 			*found = append(*found, p)
 		}
 	}
 	if n.Divided {
 		for _, child := range n.Children {
-			child.query(rangeBounds, found)
+			child.query(rangeBounds, assetMask, found)
 		}
 	}
 }

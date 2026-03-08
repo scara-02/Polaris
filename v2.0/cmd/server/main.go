@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"time"
 
 	"github.com/Akashpg-M/polaris/internal/adapter/handler"
 	"github.com/Akashpg-M/polaris/internal/adapter/repository"
+	"github.com/Akashpg-M/polaris/internal/application/spatial"
+	"github.com/Akashpg-M/polaris/internal/application/stream"
 	"github.com/Akashpg-M/polaris/pkg/logger"
 
 	"github.com/gin-contrib/cors"
@@ -16,26 +19,43 @@ import (
 func main() {
 	// 1. Initialize Enterprise Logging
 	logger.Init()
-	slog.Info("Booting Polaris v2.0 Ingestion Gateway...")
+	slog.Info("Booting Polaris v2.1 IoT Orchestration Engine...")
 
-	// 2. Initialize Infrastructure (Redis)
-	// Make sure your Docker container is running!
+	// 2. Initialize the In-Memory Spatial Engine (The Brain)
+	engine := spatial.NewEngine()
+	slog.Info("In-Memory QuadTree Engine initialized.")
+
+	// 3. Initialize Infrastructure (Redis)
 	redisURL := "redis://localhost:6379/0"
+	
+	// Publisher: For the Gateway to dump telemetry into Redis
 	redisAdapter, err := repository.NewRedisStreamAdapter(redisURL)
 	if err != nil {
-		slog.Error("CRITICAL: Failed to connect to Redis", "error", err)
+		slog.Error("CRITICAL: Failed to connect to Redis Adapter", "error", err)
 		log.Fatalf("System halted: %v", err)
 	}
-	slog.Info("Connected to Redis Event Stream buffer.")
 
-	// 3. Initialize the HTTP Handlers
-	// We inject the Redis Adapter into the WebSocket handler
+	// Consumer: For the background workers to pull telemetry out of Redis
+	redisConsumer, err := stream.NewRedisConsumer(redisURL, engine)
+	if err != nil {
+		slog.Error("CRITICAL: Failed to initialize Redis Consumer", "error", err)
+		log.Fatalf("System halted: %v", err)
+	}
+
+	// 4. Background Consumer Worker
+	// We use a context so we can gracefully shut it down later if needed.
+	ctx := context.Background()
+	go redisConsumer.Start(ctx, "worker-alpha")
+	slog.Info("Consumer Group 'worker-alpha' is actively polling the telemetry stream.")
+
+	// 5. Initialize the HTTP Handlers
 	ingestionHandler := handler.NewIngestionHandler(redisAdapter)
-
-	// 4. Setup the Gin Router
-	gin.SetMode(gin.ReleaseMode) // Turn off Gin's noisy debug logs
+	matchHandler := handler.NewMatchHandler(engine)
+	
+	// 6. Setup the Gin Router
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	router.Use(gin.Recovery())   // Prevent panics from crashing the server
+	router.Use(gin.Recovery())
 
 	// Configure CORS for the frontend dashboard
 	router.Use(cors.New(cors.Config{
@@ -46,11 +66,14 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// 5. Register Routes
+	// 7. Register Routes
 	// This is the universal endpoint for all IoT devices (Cars, Drones, Sensors)
 	router.GET("/ws/telemetry", ingestionHandler.HandleIoTConnection)
-
-	// 6. Start the Server
+	api := router.Group("/api/v1")
+	{
+		api.GET("/nodes/match", matchHandler.GetNearestNodes)
+	}
+	// 8. Start the Server
 	port := ":6080"
 	slog.Info("Gateway active. Listening for IoT connections", "port", port)
 	if err := router.Run(port); err != nil {

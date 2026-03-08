@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  app:
+    build: .                      # Build the Dockerfile in the current directory
+    container_name: polaris_app
+    ports:
+      - "8080:8080"               # Expose your app's port
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:                  # Env 
+      - MAP_WIDTH=5000.0          # os.LookupEnv("MAP_WIDTH") reads this
+      - MAP_HEIGHT=5000.0         # os.LookupEnv("MAP_HEIGHT") reads this
+      - LOG_LEVEL=debug           # os.LookupEnv("LOG_LEVEL") reads this
+      # Database connection strings
+      - POSTGRES_URL=postgres://polaris_user:polaris_password@db:5432/polaris_core
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: polaris_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - polaris_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: polaris_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT}:6379"
+
+  osrm:
+    image: osrm/osrm-backend
+    container_name: polaris_osrm
+    restart: always
+    ports:
+      - "5000:5000"
+    command: "osrm-routed --algorithm mld /data/chennai-metro.osrm"
+    volumes:
+      - ./chennai_map:/data
+
+volumes:
+  polaris_pg_data:

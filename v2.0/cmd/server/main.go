@@ -10,6 +10,7 @@ import (
 	"github.com/Akashpg-M/polaris/internal/adapter/repository"
 	"github.com/Akashpg-M/polaris/internal/application/spatial"
 	"github.com/Akashpg-M/polaris/internal/application/stream"
+	"github.com/Akashpg-M/polaris/internal/application/orchestrator"
 	"github.com/Akashpg-M/polaris/pkg/logger"
 
 	"github.com/gin-contrib/cors"
@@ -24,7 +25,7 @@ func main() {
 	// 2. Initialize the In-Memory Spatial Engine (The Brain)
 	engine := spatial.NewEngine()
 	slog.Info("In-Memory QuadTree Engine initialized.")
-
+	registry := handler.NewConnectionRegistry()
 	// 3. Initialize Infrastructure (Redis)
 	redisURL := "redis://localhost:6379/0"
 	
@@ -48,10 +49,13 @@ func main() {
 	go redisConsumer.Start(ctx, "worker-alpha")
 	slog.Info("Consumer Group 'worker-alpha' is actively polling the telemetry stream.")
 
+	rebalancer := orchestrator.NewRebalancer(engine, registry)
+	go rebalancer.StartAutonomousLoop(ctx)
+
 	// 5. Initialize the HTTP Handlers
-	ingestionHandler := handler.NewIngestionHandler(redisAdapter)
+	ingestionHandler := handler.NewIngestionHandler(redisAdapter, registry)
 	matchHandler := handler.NewMatchHandler(engine)
-	
+
 	// 6. Setup the Gin Router
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()

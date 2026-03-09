@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -20,10 +21,11 @@ var upgrader = websocket.Upgrader{
 
 type IngestionHandler struct {
 	publisher ports.TelemetryPublisher
+	registry  *ConnectionRegistry
 }
 
-func NewIngestionHandler(pub ports.TelemetryPublisher) *IngestionHandler {
-	return &IngestionHandler{publisher: pub}
+func NewIngestionHandler(pub ports.TelemetryPublisher, reg *ConnectionRegistry) *IngestionHandler {
+	return &IngestionHandler{publisher: pub, registry: reg}
 }
 
 // HandleIoTConnection upgrades the HTTP request to a persistent WebSocket
@@ -37,16 +39,21 @@ func (h *IngestionHandler) HandleIoTConnection(c *gin.Context) {
 
 	log.Println("[Gateway] New IoT Node Connected")
 
+	var nodeID string
+
 	for {
-		var payload domain.TelemetryPayload
-		
-		// 1. Read the JSON ping from the device
+		var payload domain.TelemetryPayload		
 		err := conn.ReadJSON(&payload)
 		if err != nil {
 			log.Printf("[Gateway] Node disconnected or invalid payload: %v", err)
 			break
 		}
 
+		if nodeID == "" {
+			nodeID = payload.NodeID
+			h.registry.Register(nodeID, conn)
+			slog.Debug("IoT Uplink Established", "node", nodeID)
+		}
 		// Inject server-side timestamp for accuracy
 		payload.Timestamp = time.Now().UTC()
 
@@ -65,5 +72,10 @@ func (h *IngestionHandler) HandleIoTConnection(c *gin.Context) {
 
 		// 3. Acknowledge receipt (Keep-Alive)
 		_ = conn.WriteJSON(map[string]string{"status": "buffered"})
+	}
+
+	if nodeID != "" {
+		h.registry.Unregister(nodeID)
+		slog.Debug("IoT Uplink Lost", "node", nodeID)
 	}
 }

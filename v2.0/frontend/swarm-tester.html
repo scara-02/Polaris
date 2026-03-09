@@ -33,27 +33,56 @@
         function bootDrone(nodeId) {
             const ws = new WebSocket("ws://localhost:6080/ws/telemetry");
             
+            // Initial spawn coordinates
+            let currentLat = 13.04 + (Math.random() * 0.05);
+            let currentLon = 80.24 + (Math.random() * 0.05);
+            
+            // Target coordinates (null until commanded by server)
+            let targetLat = null;
+            let targetLon = null;
+
             ws.onopen = () => {
                 log(`<span style="color:#3b82f6">Uplink established: ${nodeId}</span>`);
                 
-                // Emulate a 1 Hz telemetry ping (1 ping per second)
+                // Emulate a 1 Hz telemetry ping
                 setInterval(() => {
                     if (ws.readyState === WebSocket.OPEN) {
+                        
+                        // If we have a target, fly towards it (Interpolation)
+                        if (targetLat !== null && targetLon !== null) {
+                            const speed = 0.001; // Movement per second
+                            if (Math.abs(targetLat - currentLat) > speed) {
+                                currentLat += (targetLat > currentLat) ? speed : -speed;
+                            }
+                            if (Math.abs(targetLon - currentLon) > speed) {
+                                currentLon += (targetLon > currentLon) ? speed : -speed;
+                            }
+                        }
+
                         const payload = {
                             node_id: nodeId,
-                            asset_class: 16, // ClassDrone (1 << 4)
-                            lat: 13.04 + (Math.random() * 0.05),
-                            lon: 80.24 + (Math.random() * 0.05),
-                            status: "active",
-                            battery: Math.floor(Math.random() * 100)
+                            asset_class: 16, 
+                            lat: currentLat,
+                            lon: currentLon,
+                            status: "idle",
+                            battery: 100
                         };
                         ws.send(JSON.stringify(payload));
                     }
                 }, 1000);
             };
 
-            ws.onerror = (err) => log(`<span style="color:#ef4444">Connection lost: ${nodeId}</span>`);
+            // NEW: Listen for Server Commands
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.directive === "RELOCATE") {
+                    log(`<span style="color:#f59e0b">⚠️ COMMAND RECEIVED: ${nodeId} relocating to [${msg.target_lat.toFixed(3)}, ${msg.target_lon.toFixed(3)}]</span>`);
+                    targetLat = msg.target_lat;
+                    targetLon = msg.target_lon;
+                }
+            };
         }
     </script>
 </body>
 </html>
+Ieee_aka_123

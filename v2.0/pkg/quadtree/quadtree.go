@@ -27,6 +27,7 @@ type Point struct {
 	Lon   float64
 	ID    string
 	Class uint16 // The AssetClass Bitmask (e.g., 16 for Drone)
+	TenantID string
 }
 
 // SafeQuadTree is a thread-safe wrapper for high-concurrency access

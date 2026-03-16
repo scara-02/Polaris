@@ -49,7 +49,9 @@ func main() {
 	go redisConsumer.Start(ctx, "worker-alpha")
 	slog.Info("Consumer Group 'worker-alpha' is actively polling the telemetry stream.")
 
-	rebalancer := orchestrator.NewRebalancer(engine, registry)
+	// Inject the policy into the orchestrator
+	demandStrategy := &orchestrator.StaticZoneStrategy{}
+	rebalancer := orchestrator.NewRebalancer(engine, registry, demandStrategy)
 	go rebalancer.StartAutonomousLoop(ctx)
 
 	// 5. Initialize the HTTP Handlers

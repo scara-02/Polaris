@@ -66,6 +66,7 @@ func (e *Engine) BatchUpdate(payloads []domain.TelemetryPayload) {
 			Lon:   p.Lon,
 			ID:    p.NodeID,
 			Class: uint16(p.Class),
+			TenantID: p.TenantID,
 		})
 	}
 
@@ -73,7 +74,7 @@ func (e *Engine) BatchUpdate(payloads []domain.TelemetryPayload) {
 }
 
 // FindNearest queries the QuadTree, filters by exact distance, and applies context-aware routing.
-func (e *Engine) FindNearest(lat, lon, radiusKm float64, reqClass uint16) []MatchResult {
+func (e *Engine) FindNearest(tenantID string, lat, lon, radiusKm float64, reqClass uint16) []MatchResult {
 	// 1. Calculate the search boundary
 	x, y, w, h := geo.BoundingBox(lat, lon, radiusKm)
 	searchBounds := quadtree.Bounds{X: x, Y: y, Width: w, Height: h}
@@ -86,6 +87,10 @@ func (e *Engine) FindNearest(lat, lon, radiusKm float64, reqClass uint16) []Matc
 	// 3. Refine candidates with exact Earth curvature math and Context-Aware Routing
 	e.mu.RLock()
 	for _, c := range candidates {
+		if c.TenantID != tenantID {
+				continue
+		}
+
 		dist := geo.Haversine(lat, lon, c.Lat, c.Lon)
 		
 		// The QuadTree returns a square box; we filter out corners to make a perfect circle

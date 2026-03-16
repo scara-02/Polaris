@@ -29,6 +29,7 @@ const (
 
 // TelemetryPayload is the generic JSON structure expected from ANY device pinging the server.
 type TelemetryPayload struct {
+	TenantID  string                 `json:"tenant_id"` 
 	NodeID    string                 `json:"node_id"`
 	Class     AssetClass             `json:"asset_class"`
 	Lat       float64                `json:"lat"`

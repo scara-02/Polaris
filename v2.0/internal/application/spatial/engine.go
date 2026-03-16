@@ -7,8 +7,8 @@ import (
 	"sort"
 
 	"github.com/Akashpg-M/polaris/internal/core/domain"
-	"github.com/Akashpg-M/polaris/pkg/quadtree"
-	"github.com/Akashpg-M/polaris/pkg/geo"
+	"github.com/Akashpg-M/polaris/algo_/quadtree"
+	"github.com/Akashpg-M/polaris/algo_/geo"
 
 )
 
@@ -44,6 +44,36 @@ func NewEngine() *Engine {
 }
 
 // BatchUpdate processes thousands of pings with a single lock
+// func (e *Engine) BatchUpdate(payloads []domain.TelemetryPayload) {
+// 	if len(payloads) == 0 {
+// 		return
+// 	}
+
+// 	e.mu.Lock()
+// 	defer e.mu.Unlock()
+
+// 	start := time.Now()
+
+// 	for _, payload := range payloads {
+// 		// 1. Update the RAM Map
+// 		// Create a copy of the payload to store securely in memory
+// 		p := payload 
+// 		e.nodes[p.NodeID] = &p
+
+// 		// 2. Update the QuadTree Index
+// 		e.qt.Insert(quadtree.Point{
+// 			Lat:   p.Lat,
+// 			Lon:   p.Lon,
+// 			ID:    p.NodeID,
+// 			Class: uint16(p.Class),
+// 			TenantID: p.TenantID,
+// 		})
+// 	}
+
+// 	slog.Debug("Batch update complete", "processed", len(payloads), "duration_ms", time.Since(start).Milliseconds())
+// }
+
+// BatchUpdate processes thousands of pings with a single lock
 func (e *Engine) BatchUpdate(payloads []domain.TelemetryPayload) {
 	if len(payloads) == 0 {
 		return
@@ -55,18 +85,23 @@ func (e *Engine) BatchUpdate(payloads []domain.TelemetryPayload) {
 	start := time.Now()
 
 	for _, payload := range payloads {
-		// 1. Update the RAM Map
-		// Create a copy of the payload to store securely in memory
 		p := payload 
+
+		// 1. Check if we already have a previous location for this NodeID
+		if _, exists := e.nodes[p.NodeID]; exists {
+			// Delete the old coordinate from the QuadTree to prevent "ghosts"
+			e.qt.Remove(p.NodeID)
+		}
+
+		// 2. Update the RAM Map with the fresh payload
 		e.nodes[p.NodeID] = &p
 
-		// 2. Update the QuadTree Index
+		// 3. Insert the fresh coordinate into the QuadTree
 		e.qt.Insert(quadtree.Point{
 			Lat:   p.Lat,
 			Lon:   p.Lon,
 			ID:    p.NodeID,
 			Class: uint16(p.Class),
-			TenantID: p.TenantID,
 		})
 	}
 

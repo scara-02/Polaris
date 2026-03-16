@@ -11,7 +11,7 @@ import (
 	"github.com/Akashpg-M/polaris/internal/application/spatial"
 	"github.com/Akashpg-M/polaris/internal/application/stream"
 	"github.com/Akashpg-M/polaris/internal/application/orchestrator"
-	"github.com/Akashpg-M/polaris/pkg/logger"
+	"github.com/Akashpg-M/polaris/algo_/logger"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"

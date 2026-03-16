@@ -23,7 +23,7 @@ func (h *MatchHandler) GetNearestNodes(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing tenant identity"})
 			return
 	}
-	// Parse required query parameters
+	
 	lat, errLat := strconv.ParseFloat(c.Query("lat"), 64)
 	lon, errLon := strconv.ParseFloat(c.Query("lon"), 64)
 	radius, errRad := strconv.ParseFloat(c.DefaultQuery("radius_km", "10.0"), 64)
@@ -35,9 +35,7 @@ func (h *MatchHandler) GetNearestNodes(c *gin.Context) {
 		return
 	}
 
-	// Query the In-Memory Engine
 	matches := h.engine.FindNearest(tenantID, lat, lon, radius, uint16(assetClass))
-	// Return standard JSON response
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"count":  len(matches),

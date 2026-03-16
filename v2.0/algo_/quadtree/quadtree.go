@@ -95,3 +95,31 @@ func (n *Node) query(rangeBounds Bounds, reqClass uint16, found *[]Point) {
 		}
 	}
 }
+
+// Remove deletes a specific node by its ID to prevent ghost coordinates
+func (sqt *SafeQuadTree) Remove(id string) {
+	sqt.mu.Lock()
+	defer sqt.mu.Unlock()
+	sqt.root.remove(id)
+}
+
+func (n *Node) remove(id string) bool {
+	// 1. Check points in the current node
+	for i := len(n.Points) - 1; i >= 0; i-- {
+		if n.Points[i].ID == id {
+			// Fast slice deletion
+			n.Points = append(n.Points[:i], n.Points[i+1:]...)
+			return true 
+		}
+	}
+	
+	// 2. If the tree is subdivided, recursively search children
+	if n.Divided {
+		for _, child := range n.Children {
+			if child != nil && child.remove(id) {
+				return true
+			}
+		}
+	}
+	return false
+}

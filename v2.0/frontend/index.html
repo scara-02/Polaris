@@ -112,8 +112,7 @@
         async function fetchSpatialData() {
             try {
                 // Requesting all Class 16 (Drones) within a 50km radius of central Chennai
-                const res = await fetch('http://localhost:6080/api/v1/nodes/match?lat=13.04&lon=80.24&radius_km=50&class=16');
-                const json = await res.json();
+                const res = await fetch('http://localhost:6080/api/v1/nodes/match?lat=13.04&lon=80.24&radius_km=50&class=16&tenant_id=alpha_logistics');                const json = await res.json();
                 
                 if (json.status === "success") {
                     const nodes = json.data || [];

@@ -55,27 +55,45 @@ func (a *PostgresArchiver) Start(ctx context.Context) {
 				continue
 			}
 
-			// We use a SQL Transaction for a high-speed Bulk Insert
-			tx := a.db.MustBegin()
-			var messageIDs []string
-
-			for _, msg := range streams[0].Messages {
-				var p domain.TelemetryPayload
-				json.Unmarshal([]byte(msg.Values["data"].(string)), &p)
-
-				tx.MustExec(`INSERT INTO telemetry_history (tenant_id, node_id, asset_class, lat, lon, status, battery, recorded_at) 
-					VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-					p.TenantID, p.NodeID, p.Class, p.Lat, p.Lon, p.Status, p.Battery, p.Timestamp)
-				
-				messageIDs = append(messageIDs, msg.ID)
+			tx, err := a.db.Beginx() // Safe begin
+			if err != nil {
+					slog.Error("Failed to start DB transaction", "error", err)
+					continue
 			}
 
-			// Commit the batch to the hard drive
-			err = tx.Commit()
-			if err == nil {
-				// Tell Redis we successfully saved them
-				a.redisClient.XAck(ctx, StreamName, "polaris_archive_group", messageIDs...)
-				slog.Debug("Archived telemetry batch to PostgreSQL", "count", len(messageIDs))
+			var messageIDs []string
+			var hasError bool
+
+			for _, msg := range streams[0].Messages {
+					var p domain.TelemetryPayload
+					if err := json.Unmarshal([]byte(msg.Values["data"].(string)), &p); err != nil {
+							continue // Skip bad JSON
+					}
+
+					// Safe Exec (No panic)
+					_, err := tx.Exec(`INSERT INTO telemetry_history (tenant_id, node_id, asset_class, lat, lon, status, battery, recorded_at) 
+							VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+							p.TenantID, p.NodeID, p.Class, p.Lat, p.Lon, p.Status, p.Battery, p.Timestamp)
+					
+					if err != nil {
+							slog.Error("Failed to insert telemetry record", "node", p.NodeID, "error", err)
+							hasError = true
+							break // Stop processing this batch
+					}
+					
+					messageIDs = append(messageIDs, msg.ID)
+			}
+
+			if hasError {
+					tx.Rollback() // Abort the whole batch if something broke
+					time.Sleep(1 * time.Second) // Backoff
+					continue
+			}
+
+			// Commit the batch
+			if err := tx.Commit(); err == nil && len(messageIDs) > 0 {
+					a.redisClient.XAck(ctx, StreamName, "polaris_archive_group", messageIDs...)
+					slog.Debug("Archived telemetry batch to PostgreSQL", "count", len(messageIDs))
 			}
 		}
 	}

@@ -44,36 +44,6 @@ func NewEngine() *Engine {
 }
 
 // BatchUpdate processes thousands of pings with a single lock
-// func (e *Engine) BatchUpdate(payloads []domain.TelemetryPayload) {
-// 	if len(payloads) == 0 {
-// 		return
-// 	}
-
-// 	e.mu.Lock()
-// 	defer e.mu.Unlock()
-
-// 	start := time.Now()
-
-// 	for _, payload := range payloads {
-// 		// 1. Update the RAM Map
-// 		// Create a copy of the payload to store securely in memory
-// 		p := payload 
-// 		e.nodes[p.NodeID] = &p
-
-// 		// 2. Update the QuadTree Index
-// 		e.qt.Insert(quadtree.Point{
-// 			Lat:   p.Lat,
-// 			Lon:   p.Lon,
-// 			ID:    p.NodeID,
-// 			Class: uint16(p.Class),
-// 			TenantID: p.TenantID,
-// 		})
-// 	}
-
-// 	slog.Debug("Batch update complete", "processed", len(payloads), "duration_ms", time.Since(start).Milliseconds())
-// }
-
-// BatchUpdate processes thousands of pings with a single lock
 func (e *Engine) BatchUpdate(payloads []domain.TelemetryPayload) {
 	if len(payloads) == 0 {
 		return
@@ -98,10 +68,11 @@ func (e *Engine) BatchUpdate(payloads []domain.TelemetryPayload) {
 
 		// 3. Insert the fresh coordinate into the QuadTree
 		e.qt.Insert(quadtree.Point{
-			Lat:   p.Lat,
-			Lon:   p.Lon,
-			ID:    p.NodeID,
-			Class: uint16(p.Class),
+			Lat:      p.Lat,
+			Lon:      p.Lon,
+			ID:       p.NodeID,
+			Class:    uint16(p.Class),
+			TenantID: p.TenantID, 
 		})
 	}
 

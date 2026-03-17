@@ -43,9 +43,22 @@ func main() {
 		log.Fatalf("System halted: %v", err)
 	}
 
+	// Initialize the Database Archiver
+	
+
 	// 4. Background Consumer Worker
 	// We use a context so we can gracefully shut it down later if needed.
 	ctx := context.Background()
+
+	postgresURL := "postgres://polaris_user:polaris_password@localhost:5432/polaris_core?sslmode=disable"
+	archiver, err := stream.NewPostgresArchiver(redisURL, postgresURL)
+	if err != nil {
+		slog.Error("Warning: Failed to connect to PostgreSQL. Running without history archiver.", "error", err)
+	}else {
+    go archiver.Start(ctx)
+		slog.Info("PostgreSQL Archiver is active. Recording telemetry history.")
+	}
+
 	go redisConsumer.Start(ctx, "worker-alpha")
 	slog.Info("Consumer Group 'worker-alpha' is actively polling the telemetry stream.")
 

@@ -1,0 +1,35 @@
+services:
+  # 1. THE MESSAGE BROKER & SHOCK ABSORBER
+  redis:
+    image: redis:7-alpine
+    container_name: polaris_redis_v3
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"] # Ensures stream data isn't lost on restart
+
+  # 2. THE PERMANENT LEDGER
+  postgres:
+    image: postgis/postgis:16-3.4                             # PostGIS for future advanced spatial queries
+    container_name: polaris_db_v3
+    environment:
+      POSTGRES_USER: polaris_user
+      POSTGRES_PASSWORD: polaris_password
+      POSTGRES_DB: polaris_core
+    ports:
+      - "5432:5432"
+    volumes:
+      - polaris_pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Auto-runs schema on first boot
+
+  # 3. THE LOCAL ROUTING ENGINE
+  osrm:
+    image: osrm/osrm-backend
+    container_name: polaris_osrm_v3
+    ports:
+      - "5000:5000"
+    command: osrm-routed --algorithm mld /data/chennai-metro.osrm
+    volumes:
+      - ../../chennai_map:/data
+
+volumes:
+  polaris_pg_data:

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Polaris IoT Swarm Simulator</title>
+    <style>
+        body { background: #0f172a; color: #10b981; font-family: monospace; padding: 20px; }
+        .log { background: #000; padding: 10px; border: 1px solid #334155; height: 400px; overflow-y: auto; }
+        .btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>🚁 Polaris v2.0: IoT Swarm Ingestion Test</h2>
+    <button class="btn" onclick="launchSwarm(5)">Launch 5 Drones</button>
+    <button class="btn" onclick="launchSwarm(50)" style="background: #ef4444;">Launch 50 Drones (Stress Test)</button>
+    
+    <div class="log" id="logs" style="margin-top: 20px;"></div>
+
+    <script>
+        function log(msg) {
+            const div = document.getElementById('logs');
+            div.innerHTML = `<div>[${new Date().toISOString().split('T')[1]}] ${msg}</div>` + div.innerHTML;
+        }
+
+        function launchSwarm(count) {
+            log(`Initiating launch sequence for ${count} autonomous drones...`);
+            
+            for(let i=1; i<=count; i++) {
+                // Stagger the bootup slightly
+                setTimeout(() => bootDrone(`DRONE-${1000 + i}`), i * 50);
+            }
+        }
+
+        function bootDrone(nodeId) {
+            const ws = new WebSocket("ws://localhost:6080/ws/telemetry");
+            
+            // Initial spawn coordinates
+            let currentLat = 13.04 + (Math.random() * 0.05);
+            let currentLon = 80.24 + (Math.random() * 0.05);
+            
+            // Target coordinates (null until commanded by server)
+            let targetLat = null;
+            let targetLon = null;
+
+            ws.onopen = () => {
+                log(`<span style="color:#3b82f6">Uplink established: ${nodeId}</span>`);
+                
+                // Emulate a 1 Hz telemetry ping
+                setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        
+                        // If we have a target, fly towards it (Interpolation)
+                        if (targetLat !== null && targetLon !== null) {
+                            const speed = 0.001; // Movement per second
+                            if (Math.abs(targetLat - currentLat) > speed) {
+                                currentLat += (targetLat > currentLat) ? speed : -speed;
+                            }
+                            if (Math.abs(targetLon - currentLon) > speed) {
+                                currentLon += (targetLon > currentLon) ? speed : -speed;
+                            }
+                        }
+
+                        const payload = {
+                            tenant_id: "alpha_logistics",
+                            node_id: nodeId,
+                            asset_class: 16, 
+                            lat: currentLat,
+                            lon: currentLon,
+                            status: "idle",
+                            battery: 100
+                        };
+                        ws.send(JSON.stringify(payload));
+                    }
+                }, 1000);
+            };
+
+            // NEW: Listen for Server Commands
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.directive === "RELOCATE") {
+                    log(`<span style="color:#f59e0b">⚠️ COMMAND RECEIVED: ${nodeId} relocating to [${msg.target_lat.toFixed(3)}, ${msg.target_lon.toFixed(3)}]</span>`);
+                    targetLat = msg.target_lat;
+                    targetLon = msg.target_lon;
+                }
+            };
+        }
+    </script>
+</body>
+</html>
+Ieee_aka_123

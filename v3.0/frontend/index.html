@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polaris IoT Command Center</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #e2e8f0; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Sidebar Styles */
+        #sidebar { width: 350px; background: #1e293b; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 1000; display: flex; flex-direction: column; }
+        .header { border-bottom: 1px solid #334155; padding-bottom: 15px; margin-bottom: 15px; }
+        .header h1 { margin: 0; font-size: 24px; color: #3b82f6; }
+        .header p { margin: 5px 0 0 0; font-size: 12px; color: #94a3b8; }
+        
+        /* Stats Panel */
+        .stat-box { background: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #334155; }
+        .stat-value { font-size: 32px; font-weight: bold; color: #10b981; }
+        .stat-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+        
+        /* Controls */
+        .control-group { margin-bottom: 20px; }
+        .btn { width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background 0.2s; margin-bottom: 10px; }
+        .btn:hover { background: #2563eb; }
+        .btn-toggle { background: #475569; }
+        .btn-toggle.active { background: #ef4444; }
+
+        /* Map Container */
+        #map { flex-grow: 1; height: 100%; }
+
+        /* Custom Leaflet Popup */
+        .leaflet-popup-content-wrapper { background: #1e293b; color: #e2e8f0; border: 1px solid #3b82f6; }
+        .leaflet-popup-tip { background: #1e293b; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="header">
+            <h1>🌌 POLARIS v2.0</h1>
+            <p>Spatial Orchestration & Telemetry Analytics</p>
+        </div>
+
+        <div class="stat-box">
+            <div class="stat-value" id="activeNodes">0</div>
+            <div class="stat-label">Active Nodes (Chennai Region)</div>
+        </div>
+
+        <div class="control-group">
+            <h3 style="font-size: 14px; color: #94a3b8;">Visualization Controls</h3>
+            <button id="btnHeatmap" class="btn btn-toggle active" onclick="toggleHeatmap()">🔥 Toggle Heatmap</button>
+            <button id="btnMarkers" class="btn btn-toggle active" onclick="toggleMarkers()">📍 Toggle Node Markers</button>
+        </div>
+
+        <div style="flex-grow: 1;"></div>
+        <div style="font-size: 11px; color: #64748b; text-align: center;">
+            Live Stream Connected • Latency < 10ms
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+    <script>
+        // 1. Initialize Map centered on Chennai
+        const map = L.map('map', { zoomControl: false }).setView([13.04, 80.24], 12);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        // Dark mode cartography (CartoDB Dark Matter)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // 2. Global State Variables
+        let markersLayer = L.layerGroup().addTo(map);
+        let heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 14, gradient: {0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red'} }).addTo(map);
+        
+        let showHeatmap = true;
+        let showMarkers = true;
+
+        // Custom Drone Icon
+        const droneIcon = L.divIcon({
+            html: '🚁',
+            className: 'custom-div-icon',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        // 3. UI Toggle Functions
+        function toggleHeatmap() {
+            showHeatmap = !showHeatmap;
+            document.getElementById('btnHeatmap').classList.toggle('active');
+            if(showHeatmap) map.addLayer(heatLayer);
+            else map.removeLayer(heatLayer);
+        }
+
+        function toggleMarkers() {
+            showMarkers = !showMarkers;
+            document.getElementById('btnMarkers').classList.toggle('active');
+            if(showMarkers) map.addLayer(markersLayer);
+            else map.removeLayer(markersLayer);
+        }
+
+        // 4. The Analytics Engine: Poll the Match API
+        async function fetchSpatialData() {
+            try {
+                // Requesting all Class 16 (Drones) within a 50km radius of central Chennai
+                const res = await fetch('http://localhost:6081/api/v1/nodes/match?lat=13.04&lon=80.24&radius_km=50&class=16&tenant_id=alpha_logistics');                const json = await res.json();
+                
+                if (json.status === "success") {
+                    const nodes = json.data || [];
+                    document.getElementById('activeNodes').innerText = nodes.length;
+                    
+                    // Clear previous frame
+                    markersLayer.clearLayers();
+                    const heatData = [];
+
+                    nodes.forEach(node => {
+                        // Accumulate heatmap density points
+                        heatData.push([node.lat, node.lon, 1.0]); // 1.0 is the intensity weight
+
+                        // Draw individual markers
+                        const marker = L.marker([node.lat, node.lon], { icon: droneIcon });
+                        marker.bindPopup(`
+                            <div style="text-align:center;">
+                                <strong style="color:#10b981">${node.node_id}</strong><br>
+                                Class: Drone (16)<br>
+                                Distance: ${node.distance_km.toFixed(2)} km
+                            </div>
+                        `);
+                        markersLayer.addLayer(marker);
+                    });
+
+                    // Update Heatmap
+                    heatLayer.setLatLngs(heatData);
+                }
+            } catch (err) {
+                console.error("Failed to fetch spatial data from Engine", err);
+            }
+        }
+
+        // 5. The Real-Time Loop
+        // Poll the engine every 1 second. Because the QuadTree is in-memory, 
+        // this is extremely fast and will not crash the server.
+        setInterval(fetchSpatialData, 1000);
+        
+        // Initial fetch
+        fetchSpatialData();
+    </script>
+</body>
+</html>

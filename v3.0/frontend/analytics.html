@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Polaris Analytics | Live Stress Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { margin: 0; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #e2e8f0; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { color: #3b82f6; margin: 0; font-size: 28px; }
+        .header p { color: #94a3b8; font-size: 14px; }
+        .stats-container { display: flex; justify-content: center; gap: 30px; margin-bottom: 30px; }
+        .stat-box { background: #1e293b; padding: 20px; border-radius: 10px; border: 1px solid #334155; text-align: center; min-width: 200px; }
+        .stat-value { font-size: 48px; font-weight: bold; color: #10b981; transition: color 0.3s; }
+        .stat-label { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+        .chart-container { background: #1e293b; padding: 20px; border-radius: 10px; border: 1px solid #334155; height: 500px; }
+        
+        /* Warning colors for heavy load */
+        .warning { color: #f59e0b; }
+        .danger { color: #ef4444; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🌌 POLARIS METRICS</h1>
+        <p>Real-Time Gateway Ingestion Monitor</p>
+    </div>
+
+    <div class="stats-container">
+        <div class="stat-box">
+            <div class="stat-value" id="currentUplinks">0</div>
+            <div class="stat-label">Active WebSockets</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="loadChart"></canvas>
+    </div>
+
+    <script>
+        // 1. Setup Chart.js
+        const ctx = document.getElementById('loadChart').getContext('2d');
+        const loadChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // Time labels
+                datasets: [{
+                    label: 'Concurrent IoT Uplinks',
+                    data: [],
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4, // Smooth curves
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 }, // Turn off animation for real-time feel
+                scales: {
+                    x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    y: { 
+                        grid: { color: '#334155' }, 
+                        ticks: { color: '#94a3b8' },
+                        beginAtZero: true,
+                        suggestedMax: 10000 // Will auto-scale if you go higher
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#e2e8f0' } }
+                }
+            }
+        });
+
+        const maxDataPoints = 60; // Keep the last 60 seconds on screen
+
+        // 2. Poll the Gateway API
+        async function fetchMetrics() {
+            try {
+                // Hitting the Gateway on port 6080
+                const res = await fetch('http://localhost:6080/api/v1/metrics/connections');
+                const json = await res.json();
+                
+                const uplinks = json.active_uplinks;
+                
+                // Update the giant number
+                const countElement = document.getElementById('currentUplinks');
+                countElement.innerText = uplinks.toLocaleString();
+                
+                // Change color based on stress level
+                if (uplinks > 40000) countElement.className = "stat-value danger";
+                else if (uplinks > 20000) countElement.className = "stat-value warning";
+                else countElement.className = "stat-value";
+
+                // Update the Chart
+                const now = new Date().toLocaleTimeString();
+                
+                loadChart.data.labels.push(now);
+                loadChart.data.datasets[0].data.push(uplinks);
+
+                // Scroll the chart if it gets too full
+                if (loadChart.data.labels.length > maxDataPoints) {
+                    loadChart.data.labels.shift();
+                    loadChart.data.datasets[0].data.shift();
+                }
+
+                loadChart.update();
+
+            } catch (err) {
+                console.error("Failed to fetch metrics. Is the Gateway running?", err);
+            }
+        }
+
+        // Poll every 1 second
+        setInterval(fetchMetrics, 1000);
+        fetchMetrics();
+    </script>
+</body>
+</html>

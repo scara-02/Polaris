@@ -81,7 +81,8 @@
         // 2. Global State Variables
         let markersLayer = L.layerGroup().addTo(map);
         let heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 14, gradient: {0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red'} }).addTo(map);
-        
+        let hotspotsLayer = L.layerGroup().addTo(map);
+
         let showHeatmap = true;
         let showMarkers = true;
 
@@ -145,6 +146,41 @@
                 console.error("Failed to fetch spatial data from Engine", err);
             }
         }
+
+        function toggleHotspots() {
+            showHotspots = !showHotspots;
+            document.getElementById('btnHotspots').classList.toggle('active');
+            if(showHotspots) map.addLayer(hotspotsLayer);
+            else map.removeLayer(hotspotsLayer);
+        }
+
+        async function fetchPredictedZones() {
+            try {
+                const res = await fetch('http://localhost:6081/api/v1/zones/predicted');
+                const json = await res.json();
+                
+                if (json.status === "success") {
+                    hotspotsLayer.clearLayers();
+                    const zones = json.data || [];
+
+                    zones.forEach(zone => {
+                        // Draw a glowing red circle to indicate predicted high demand
+                        L.circle([zone.Lat, zone.Lon], {
+                            color: '#ef4444',
+                            fillColor: '#ef4444',
+                            fillOpacity: 0.2,
+                            radius: zone.RadiusKm * 1000 // Convert km to meters
+                        }).bindPopup(`<b>🤖 AI Prediction:</b> High Demand<br>Zone: ${zone.ID}`).addTo(hotspotsLayer);
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to fetch ML zones", err);
+            }
+        }
+
+        // Poll the ML engine every 10 seconds (zones don't change as fast as drones)
+        setInterval(fetchPredictedZones, 10000);
+        fetchPredictedZones();
 
         // 5. The Real-Time Loop
         // Poll the engine every 1 second. Because the QuadTree is in-memory, 

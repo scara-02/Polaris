@@ -99,20 +99,18 @@ func (e *Engine) FindNearest(tenantID string, lat, lon, radiusKm float64, reqCla
 
 		dist := geo.Haversine(lat, lon, c.Lat, c.Lon)
 		
-		// The QuadTree returns a square box; we filter out corners to make a perfect circle
+
 		if dist <= radiusKm {
-			// Context-Aware Routing Logic
+
 			var eta int
 			var routeType string
 
 			if (c.Class & uint16(domain.ClassDrone)) > 0 {
-				// Drones fly point-to-point. Assume 60 km/h (1 km per minute)
+
 				eta = int((dist / 60.0) * 3600)
 				routeType = "euclidean_air"
 			} else {
-				// Ground Vehicles use street networks. 
-				// For now, we simulate a Manhattan distance penalty (x1.4) at 40 km/h.
-				// In production, this candidate would be sent to your OSRM container.
+
 				streetDist := dist * 1.4 
 				eta = int((streetDist / 40.0) * 3600)
 				routeType = "osrm_street"
@@ -126,6 +124,7 @@ func (e *Engine) FindNearest(tenantID string, lat, lon, radiusKm float64, reqCla
 				DistanceKm: dist,
 				ETASec:     eta,
 				RouteType:  routeType,
+				
 			})
 		}
 	}
@@ -137,8 +136,9 @@ func (e *Engine) FindNearest(tenantID string, lat, lon, radiusKm float64, reqCla
 	})
 
 	// Limit to top 50 matches to save bandwidth
-	if len(results) > 50 {
-		return results[:50]
+	if len(results) > 500 {
+		return results[:500]
 	}
+
 	return results
 }

@@ -55,46 +55,62 @@ func (a *PostgresArchiver) Start(ctx context.Context) {
 				continue
 			}
 
-			tx, err := a.db.Beginx() // Safe begin
-			if err != nil {
-					slog.Error("Failed to start DB transaction", "error", err)
-					continue
-			}
+			tx, err := a.db.Beginx() 
+      if err != nil {
+          slog.Error("Failed to start DB transaction", "error", err)
+          continue
+      }
 
-			var messageIDs []string
-			var hasError bool
+      var successfulMessageIDs []string
+      var transactionAborted bool
 
-			for _, msg := range streams[0].Messages {
-					var p domain.TelemetryPayload
-					if err := json.Unmarshal([]byte(msg.Values["data"].(string)), &p); err != nil {
-							continue // Skip bad JSON
-					}
+      for _, msg := range streams[0].Messages {
+          var p domain.TelemetryPayload
+          
+          // 1. Unmarshal check (Safe to continue, DB is untouched)
+          if err := json.Unmarshal([]byte(msg.Values["data"].(string)), &p); err != nil {
+              slog.Warn("Dropping malformed JSON payload", "msg_id", msg.ID)
+              a.redisClient.XAck(ctx, StreamName, "polaris_archive_group", msg.ID)
+              continue 
+          }
 
-					// Safe Exec (No panic)
-					_, err := tx.Exec(`INSERT INTO telemetry_history (tenant_id, node_id, asset_class, lat, lon, status, battery, recorded_at) 
-							VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-							p.TenantID, p.NodeID, p.Class, p.Lat, p.Lon, p.Status, p.Battery, p.Timestamp)
-					
-					if err != nil {
-							slog.Error("Failed to insert telemetry record", "node", p.NodeID, "error", err)
-							hasError = true
-							break // Stop processing this batch
-					}
-					
-					messageIDs = append(messageIDs, msg.ID)
-			}
+          // 2. Insert check
+          _, err := tx.Exec(`INSERT INTO telemetry_history (tenant_id, node_id, asset_class, lat, lon, status, battery, recorded_at) 
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              p.TenantID, p.NodeID, p.Class, p.Lat, p.Lon, p.Status, p.Battery, p.Timestamp)
+          
+          if err != nil {
+              slog.Error("Dropping bad telemetry record (DB Constraint Failed)", "node", p.NodeID, "error", err)
+              a.redisClient.XAck(ctx, StreamName, "polaris_archive_group", msg.ID) // Drop the bad pill
+              
+              // CRITICAL: The transaction is dead. Rollback and abort the rest of this loop.
+              tx.Rollback()
+              transactionAborted = true
+              break 
+          }
+          
+          // 3. Success
+          successfulMessageIDs = append(successfulMessageIDs, msg.ID)
+      }
 
-			if hasError {
-					tx.Rollback() // Abort the whole batch if something broke
-					time.Sleep(1 * time.Second) // Backoff
-					continue
-			}
+      // If the transaction died, skip the commit phase entirely. 
+      // Redis will resend the un-acked good messages in the next batch.
+      if transactionAborted {
+          continue 
+      }
 
-			// Commit the batch
-			if err := tx.Commit(); err == nil && len(messageIDs) > 0 {
-					a.redisClient.XAck(ctx, StreamName, "polaris_archive_group", messageIDs...)
-					slog.Debug("Archived telemetry batch to PostgreSQL", "count", len(messageIDs))
-			}
+      // Commit the good ones
+      if len(successfulMessageIDs) > 0 {
+          if err := tx.Commit(); err == nil {
+              a.redisClient.XAck(ctx, StreamName, "polaris_archive_group", successfulMessageIDs...)
+              slog.Debug("Archived telemetry batch to PostgreSQL", "count", len(successfulMessageIDs))
+          } else {
+              slog.Error("Failed to commit batch to PostgreSQL", "error", err)
+              tx.Rollback()
+          }
+      } else {
+          tx.Rollback() // Nothing to save (e.g., if all messages were bad JSON)
+      }
 		}
 	}
 }

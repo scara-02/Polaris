@@ -47,7 +47,7 @@ func main() {
 	
 
 	// 4. Background Consumer Worker
-	// We use a context so we can gracefully shut it down later if needed.
+	// use a context so we can gracefully shut it down later if needed.
 	ctx := context.Background()
 
 	postgresURL := "postgres://polaris_user:polaris_password@localhost:5432/polaris_core?sslmode=disable"
@@ -86,7 +86,7 @@ func main() {
 	}))
 
 	// 7. Register Routes
-	// This is the universal endpoint for all IoT devices (Cars, Drones, Sensors)
+	// universal endpoint for all IoT devices (Cars, Drones, Sensors)
 	router.GET("/ws/telemetry", ingestionHandler.HandleIoTConnection)
 	api := router.Group("/api/v1")
 	{

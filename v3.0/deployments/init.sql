@@ -12,3 +12,7 @@ CREATE TABLE IF NOT EXISTS telemetry_history (
 
 -- Index for fast historical reporting (e.g., "Where was Drone-1001 yesterday?")
 CREATE INDEX idx_telemetry_node_time ON telemetry_history(node_id, recorded_at DESC);
+
+-- Index for predictive queries (avoids full table scan)
+CREATE INDEX idx_telemetry_predictive 
+ON telemetry_history (recorded_at, lat, lon);

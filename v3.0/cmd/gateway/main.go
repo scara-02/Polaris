@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"context"
 	"encoding/json"
 	"log"
@@ -17,8 +18,8 @@ func main() {
 	logger.Init()
 	slog.Info("Booting Polaris v3.0 API Gateway...")
 
-	redisURL := "redis://localhost:6379/0"
-	
+	redisURL := os.Getenv("REDIS_URL")
+
 	// 1. Publisher for Ingestion
 	redisAdapter, err := repository.NewRedisStreamAdapter(redisURL)
 	if err != nil {
@@ -35,9 +36,23 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Next()
+	})
+
 	ingestionHandler := handler.NewIngestionHandler(redisAdapter, registry)
 	router.GET("/ws/telemetry", ingestionHandler.HandleIoTConnection)
 
+	api := router.Group("/api/v1")
+	{
+		api.GET("/metrics/connections", func(c *gin.Context) {
+			c.JSON(200, gin.H{
+				"active_uplinks": registry.GetActiveCount(),
+			})
+		})
+	}
+	
 	port := ":6080"
 	slog.Info("Gateway active. Listening for IoT WebSockets", "port", port)
 	router.Run(port)

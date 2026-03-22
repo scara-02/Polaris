@@ -105,6 +105,7 @@
 package main
 
 import (
+	"os"
 	"context"
 	"encoding/json"
 	"log"
@@ -121,7 +122,7 @@ func main() {
 	logger.Init()
 	slog.Info("Booting Polaris v3.0 API Gateway...")
 
-	redisURL := "redis://localhost:6379/0"
+	redisURL := os.Getenv("REDIS_URL")
 	
 	// 1. Publisher for Ingestion
 	redisAdapter, err := repository.NewRedisStreamAdapter(redisURL)

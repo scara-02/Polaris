@@ -52,3 +52,10 @@ func (r *ConnectionRegistry) SendCommand(nodeID string, payload interface{}) err
 	
 	return client.conn.WriteJSON(payload)
 }
+
+// GetActiveCount returns the number of currently connected IoT devices
+func (r *ConnectionRegistry) GetActiveCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.clients)
+}

@@ -1,6 +1,141 @@
+// // import { useEffect, useRef, useState } from 'react';
+// // import L from 'leaflet';
+// // // @ts-ignore - leaflet.heat lacks official TS types
+// // import 'leaflet.heat';
+// // import 'leaflet/dist/leaflet.css';
+// // import type { MatchResult, ZonePrediction } from '../types/polaris';
+
+// // interface MapState {
+// //   map: L.Map;
+// //   markersLayer: L.LayerGroup;
+// //   heatLayer: any; 
+// //   hotspotsLayer: L.LayerGroup;
+// // }
+
+// // export default function MapDashboard() {
+// //   const mapRef = useRef<MapState | null>(null);
+// //   const [activeNodes, setActiveNodes] = useState<number>(0);
+
+// //   useEffect(() => {
+// //     if (mapRef.current) return;
+
+// //     const map = L.map('map-container', { zoomControl: false }).setView([13.04, 80.24], 12);
+
+// //     L.control.zoom({ position: 'topright' }).addTo(map);
+
+// //     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+// //       attribution: '&copy; CARTO',
+// //       subdomains: 'abcd',
+// //       maxZoom: 19
+// //     }).addTo(map);
+
+// //     const heatLayer = (L as any).heatLayer([], {
+// //       radius: 25,
+// //       blur: 15,
+// //       maxZoom: 14
+// //     }).addTo(map);
+
+// //     const markersLayer = L.layerGroup().addTo(map);
+// //     const hotspotsLayer = L.layerGroup().addTo(map);
+
+// //     mapRef.current = {
+// //       map,
+// //       markersLayer,
+// //       heatLayer,
+// //       hotspotsLayer
+// //     };
+
+// //     setTimeout(() => {
+// //       map.invalidateSize();
+// //     }, 0);
+
+// //     const droneIcon = L.divIcon({
+// //       html: '🚁',
+// //       className: 'custom-div-icon',
+// //       iconSize: [24, 24]
+// //     });
+
+// //     const fetchSpatialData = async () => {
+// //       try {
+// //         const res = await fetch('http://localhost:6081/api/v1/nodes/match?lat=13.04&lon=80.24&radius_km=50&class=16&tenant_id=alpha_logistics');
+// //         const json: { status: string; data: MatchResult[] } = await res.json();
+
+// //         if (json.status === "success") {
+// //           setActiveNodes(json.data.length);
+
+// //           markersLayer.clearLayers();
+// //           const heatData: [number, number, number][] = [];
+
+// //           json.data.forEach((node) => {
+// //             heatData.push([node.lat, node.lon, 1.0]);
+
+// //             L.marker([node.lat, node.lon], { icon: droneIcon })
+// //               .bindPopup(`<strong>${node.node_id}</strong><br>Distance: ${node.distance_km.toFixed(2)} km`)
+// //               .addTo(markersLayer);
+// //           });
+
+// //           if (heatData.length > 0) {
+// //             heatLayer.setLatLngs(heatData);
+// //           }
+// //         }
+// //       } catch (err) {
+// //         console.error("Engine fetch failed", err);
+// //       }
+// //     };
+
+// //     const fetchPredictedZones = async () => {
+// //       try {
+// //         const res = await fetch('http://localhost:6081/api/v1/zones/predicted');
+// //         const json: { status: string; data: ZonePrediction[] } = await res.json();
+
+// //         if (json.status === "success") {
+// //           hotspotsLayer.clearLayers();
+
+// //           json.data.forEach((zone) => {
+// //             L.circle([zone.Lat, zone.Lon], {
+// //               color: '#ef4444',
+// //               fillColor: '#ef4444',
+// //               fillOpacity: 0.2,
+// //               radius: zone.RadiusKm * 1000
+// //             })
+// //               .bindPopup(`<b>🤖 AI Prediction</b><br>Zone: ${zone.ID}`)
+// //               .addTo(hotspotsLayer);
+// //           });
+// //         }
+// //       } catch (err) {
+// //         console.error("Failed to fetch ML zones", err);
+// //       }
+// //     };
+
+// //     const spatialInterval = setInterval(fetchSpatialData, 1000);
+// //     const predictionInterval = setInterval(fetchPredictedZones, 10000);
+
+// //     fetchPredictedZones();
+
+// //     return () => {
+// //       clearInterval(spatialInterval);
+// //       clearInterval(predictionInterval);
+
+// //       map.remove();
+// //       mapRef.current = null;
+// //     };
+// //   }, []);
+
+
+// //   return (
+// //     <div className="relative w-full h-full">
+// //       <div className="absolute top-4 left-4 z-[1000] bg-slate-800/90 p-4 rounded-lg border border-slate-700 shadow-lg">
+// //         <div className="text-3xl font-bold text-emerald-500">{activeNodes}</div>
+// //         <div className="text-xs text-slate-400 uppercase tracking-widest">Active Nodes</div>
+// //       </div>
+// //       <div id="map-container" className="w-full h-full" />
+// //     </div>
+// //   );
+// // }
+
 // import { useEffect, useRef, useState } from 'react';
 // import L from 'leaflet';
-// // @ts-ignore - leaflet.heat lacks official TS types
+// // @ts-ignore
 // import 'leaflet.heat';
 // import 'leaflet/dist/leaflet.css';
 // import type { MatchResult, ZonePrediction } from '../types/polaris';
@@ -8,18 +143,22 @@
 // interface MapState {
 //   map: L.Map;
 //   markersLayer: L.LayerGroup;
-//   heatLayer: any; 
+//   heatLayer: any;
 //   hotspotsLayer: L.LayerGroup;
 // }
 
 // export default function MapDashboard() {
+//   const containerRef = useRef<HTMLDivElement | null>(null);
 //   const mapRef = useRef<MapState | null>(null);
 //   const [activeNodes, setActiveNodes] = useState<number>(0);
 
 //   useEffect(() => {
-//     if (mapRef.current) return;
+//     // 🚫 Prevent double init + ensure container exists
+//     if (!containerRef.current || mapRef.current) return;
 
-//     const map = L.map('map-container', { zoomControl: false }).setView([13.04, 80.24], 12);
+//     const map = L.map(containerRef.current, {
+//       zoomControl: false
+//     }).setView([13.04, 80.24], 12);
 
 //     L.control.zoom({ position: 'topright' }).addTo(map);
 
@@ -29,25 +168,44 @@
 //       maxZoom: 19
 //     }).addTo(map);
 
-//     const heatLayer = (L as any).heatLayer([], {
-//       radius: 25,
-//       blur: 15,
-//       maxZoom: 14
-//     }).addTo(map);
-
 //     const markersLayer = L.layerGroup().addTo(map);
 //     const hotspotsLayer = L.layerGroup().addTo(map);
 
 //     mapRef.current = {
 //       map,
 //       markersLayer,
-//       heatLayer,
+//       heatLayer: null,
 //       hotspotsLayer
 //     };
 
-//     setTimeout(() => {
-//       map.invalidateSize();
-//     }, 0);
+//     // ✅ Initialize heatmap ONLY after map is ready
+//     map.whenReady(() => {
+//       // 🔥 Wait until container has real size
+//       const waitForSize = () => {
+//         const size = map.getSize();
+
+//         if (size.x === 0 || size.y === 0) {
+//           requestAnimationFrame(waitForSize);
+//           return;
+//         }
+
+//         // ✅ Now safe to create heatmap
+//         const heatLayer = (L as any).heatLayer([], {
+//           radius: 25,
+//           blur: 15,
+//           maxZoom: 14
+//         }).addTo(map);
+
+//         if (mapRef.current) {
+//           mapRef.current.heatLayer = heatLayer;
+//         }
+
+//         map.invalidateSize();
+//       };
+
+//       waitForSize();
+//     });
+
 
 //     const droneIcon = L.divIcon({
 //       html: '🚁',
@@ -55,40 +213,51 @@
 //       iconSize: [24, 24]
 //     });
 
+//     // 🚀 Fetch nodes
 //     const fetchSpatialData = async () => {
 //       try {
-//         const res = await fetch('http://localhost:6081/api/v1/nodes/match?lat=13.04&lon=80.24&radius_km=50&class=16&tenant_id=alpha_logistics');
+//         const res = await fetch(
+//           'http://localhost:6081/api/v1/nodes/match?lat=13.04&lon=80.24&radius_km=50&class=16&tenant_id=alpha_logistics'
+//         );
 //         const json: { status: string; data: MatchResult[] } = await res.json();
 
-//         if (json.status === "success") {
-//           setActiveNodes(json.data.length);
+//         if (json.status === 'success' && mapRef.current) {
+//           const { markersLayer, heatLayer } = mapRef.current;
 
+//           setActiveNodes(json.data.length);
 //           markersLayer.clearLayers();
+
 //           const heatData: [number, number, number][] = [];
 
 //           json.data.forEach((node) => {
 //             heatData.push([node.lat, node.lon, 1.0]);
 
 //             L.marker([node.lat, node.lon], { icon: droneIcon })
-//               .bindPopup(`<strong>${node.node_id}</strong><br>Distance: ${node.distance_km.toFixed(2)} km`)
+//               .bindPopup(
+//                 `<strong>${node.node_id}</strong><br>Distance: ${node.distance_km.toFixed(2)} km`
+//               )
 //               .addTo(markersLayer);
 //           });
 
-//           if (heatData.length > 0) {
+//           // ✅ Guard heat layer usage
+//           if (heatLayer && heatData.length > 0) {
 //             heatLayer.setLatLngs(heatData);
 //           }
 //         }
 //       } catch (err) {
-//         console.error("Engine fetch failed", err);
+//         console.error('Engine fetch failed', err);
 //       }
 //     };
 
+//     // 🤖 Fetch predicted zones
 //     const fetchPredictedZones = async () => {
 //       try {
 //         const res = await fetch('http://localhost:6081/api/v1/zones/predicted');
 //         const json: { status: string; data: ZonePrediction[] } = await res.json();
 
-//         if (json.status === "success") {
+//         if (json.status === 'success' && mapRef.current) {
+//           const { hotspotsLayer } = mapRef.current;
+
 //           hotspotsLayer.clearLayers();
 
 //           json.data.forEach((zone) => {
@@ -103,7 +272,7 @@
 //           });
 //         }
 //       } catch (err) {
-//         console.error("Failed to fetch ML zones", err);
+//         console.error('Failed to fetch ML zones', err);
 //       }
 //     };
 
@@ -112,26 +281,33 @@
 
 //     fetchPredictedZones();
 
+//     // 🧹 Cleanup (critical)
 //     return () => {
 //       clearInterval(spatialInterval);
 //       clearInterval(predictionInterval);
 
-//       map.remove();
-//       mapRef.current = null;
+//       if (mapRef.current) {
+//         mapRef.current.map.remove();
+//         mapRef.current = null;
+//       }
 //     };
 //   }, []);
-
 
 //   return (
 //     <div className="relative w-full h-full">
 //       <div className="absolute top-4 left-4 z-[1000] bg-slate-800/90 p-4 rounded-lg border border-slate-700 shadow-lg">
 //         <div className="text-3xl font-bold text-emerald-500">{activeNodes}</div>
-//         <div className="text-xs text-slate-400 uppercase tracking-widest">Active Nodes</div>
+//         <div className="text-xs text-slate-400 uppercase tracking-widest">
+//           Active Nodes
+//         </div>
 //       </div>
-//       <div id="map-container" className="w-full h-full" />
+
+//       {/* ✅ Use ref instead of id */}
+//       <div ref={containerRef} className="w-full h-full" />
 //     </div>
 //   );
 // }
+
 
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
@@ -150,22 +326,17 @@ interface MapState {
 export default function MapDashboard() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapState | null>(null);
-  const [activeNodes, setActiveNodes] = useState<number>(0);
+  const [activeNodes, setActiveNodes] = useState(0);
 
   useEffect(() => {
-    // 🚫 Prevent double init + ensure container exists
     if (!containerRef.current || mapRef.current) return;
 
-    const map = L.map(containerRef.current, {
-      zoomControl: false
-    }).setView([13.04, 80.24], 12);
-
+    // Initialize Map
+    const map = L.map(containerRef.current, { zoomControl: false }).setView([13.04, 80.24], 12);
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19
+        attribution: '&copy; CARTO'
     }).addTo(map);
 
     const markersLayer = L.layerGroup().addTo(map);
@@ -178,114 +349,87 @@ export default function MapDashboard() {
       hotspotsLayer
     };
 
-    // ✅ Initialize heatmap ONLY after map is ready
-    map.whenReady(() => {
-      // 🔥 Wait until container has real size
-      const waitForSize = () => {
-        const size = map.getSize();
+    const waitForSize = () => {
+      const size = map.getSize();
+      if (size.x === 0 || size.y === 0) {
+        requestAnimationFrame(waitForSize);
+        return;
+      }
+      // Initialize Heat Layer once dimensions are known
+      const heatLayer = (L as any).heatLayer([], { radius: 25, blur: 15, maxZoom: 14 }).addTo(map);
+      if (mapRef.current) mapRef.current.heatLayer = heatLayer;
+      map.invalidateSize();
+    };
 
-        if (size.x === 0 || size.y === 0) {
-          requestAnimationFrame(waitForSize);
-          return;
-        }
+    waitForSize();
 
-        // ✅ Now safe to create heatmap
-        const heatLayer = (L as any).heatLayer([], {
-          radius: 25,
-          blur: 15,
-          maxZoom: 14
-        }).addTo(map);
-
-        if (mapRef.current) {
-          mapRef.current.heatLayer = heatLayer;
-        }
-
-        map.invalidateSize();
-      };
-
-      waitForSize();
-    });
-
-
-    const droneIcon = L.divIcon({
-      html: '🚁',
-      className: 'custom-div-icon',
-      iconSize: [24, 24]
-    });
-
-    // 🚀 Fetch nodes
+    // Fetch Live Drone Data
     const fetchSpatialData = async () => {
       try {
-        const res = await fetch(
-          'http://localhost:6081/api/v1/nodes/match?lat=13.04&lon=80.24&radius_km=50&class=16&tenant_id=alpha_logistics'
-        );
-        const json: { status: string; data: MatchResult[] } = await res.json();
+        // FIXED: Restored the full query parameters
+        const res = await fetch(`${import.meta.env.VITE_ENGINE_API}/nodes/match?lat=13.04&lon=80.24&radius_km=50&class=16&tenant_id=alpha_logistics`);
+        const json = await res.json();
 
-        if (json.status === 'success' && mapRef.current) {
+        const data: MatchResult[] = Array.isArray(json.data) ? json.data : [];
+
+        if (mapRef.current) {
           const { markersLayer, heatLayer } = mapRef.current;
-
-          setActiveNodes(json.data.length);
           markersLayer.clearLayers();
 
           const heatData: [number, number, number][] = [];
+          const droneIcon = L.divIcon({ html: '🚁', className: 'custom-div-icon', iconSize: [24, 24] });
 
-          json.data.forEach((node) => {
-            heatData.push([node.lat, node.lon, 1.0]);
-
+          data.forEach(node => {
+            heatData.push([node.lat, node.lon, 1]);
             L.marker([node.lat, node.lon], { icon: droneIcon })
-              .bindPopup(
-                `<strong>${node.node_id}</strong><br>Distance: ${node.distance_km.toFixed(2)} km`
-              )
-              .addTo(markersLayer);
+             .bindPopup(`<strong style="color:#10b981">${node.node_id}</strong><br>Distance: ${node.distance_km.toFixed(2)} km`)
+             .addTo(markersLayer);
           });
 
-          // ✅ Guard heat layer usage
           if (heatLayer && heatData.length > 0) {
             heatLayer.setLatLngs(heatData);
           }
+
+          setActiveNodes(data.length);
         }
       } catch (err) {
-        console.error('Engine fetch failed', err);
+        // Silent fail on dev disconnects
       }
     };
 
-    // 🤖 Fetch predicted zones
+    // Fetch AI Predictions
     const fetchPredictedZones = async () => {
       try {
-        const res = await fetch('http://localhost:6081/api/v1/zones/predicted');
-        const json: { status: string; data: ZonePrediction[] } = await res.json();
+        const res = await fetch(`${import.meta.env.VITE_ENGINE_API}/zones/predicted`);
+        const json = await res.json();
 
-        if (json.status === 'success' && mapRef.current) {
+        const zones: ZonePrediction[] = Array.isArray(json.data) ? json.data : [];
+
+        if (mapRef.current) {
           const { hotspotsLayer } = mapRef.current;
-
           hotspotsLayer.clearLayers();
 
-          json.data.forEach((zone) => {
+          zones.forEach(zone => {
             L.circle([zone.Lat, zone.Lon], {
               color: '#ef4444',
               fillColor: '#ef4444',
               fillOpacity: 0.2,
               radius: zone.RadiusKm * 1000
-            })
-              .bindPopup(`<b>🤖 AI Prediction</b><br>Zone: ${zone.ID}`)
-              .addTo(hotspotsLayer);
+            }).bindPopup(`<b>🤖 AI Prediction:</b> High Demand<br>Zone: ${zone.ID}`).addTo(hotspotsLayer);
           });
         }
       } catch (err) {
-        console.error('Failed to fetch ML zones', err);
+         // Silent fail on dev disconnects
       }
     };
 
-    const spatialInterval = setInterval(fetchSpatialData, 1000);
-    const predictionInterval = setInterval(fetchPredictedZones, 10000);
+    const i1 = setInterval(fetchSpatialData, 1000);
+    const i2 = setInterval(fetchPredictedZones, 10000);
+    fetchPredictedZones(); // Immediate fetch on load
 
-    fetchPredictedZones();
-
-    // 🧹 Cleanup (critical)
     return () => {
-      clearInterval(spatialInterval);
-      clearInterval(predictionInterval);
-
+      clearInterval(i1);
+      clearInterval(i2);
       if (mapRef.current) {
         mapRef.current.map.remove();
         mapRef.current = null;
@@ -294,15 +438,11 @@ export default function MapDashboard() {
   }, []);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="w-full h-full relative">
       <div className="absolute top-4 left-4 z-[1000] bg-slate-800/90 p-4 rounded-lg border border-slate-700 shadow-lg">
         <div className="text-3xl font-bold text-emerald-500">{activeNodes}</div>
-        <div className="text-xs text-slate-400 uppercase tracking-widest">
-          Active Nodes
-        </div>
+        <div className="text-xs text-slate-400 uppercase tracking-widest">Active Nodes</div>
       </div>
-
-      {/* ✅ Use ref instead of id */}
       <div ref={containerRef} className="w-full h-full" />
     </div>
   );

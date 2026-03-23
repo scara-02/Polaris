@@ -15,7 +15,7 @@ As logistics, ride-sharing, and drone delivery networks scale, they face a massi
 2. **Instant Spatial Awareness:** It feeds those coordinates into a custom, in-memory QuadTree (the "Brain"), bypassing database read-delays entirely. 
 3. **Autonomous Action:** The system continuously evaluates the live map against predictive AI demand zones. When a geographic deficit is detected, Polaris doesn't wait for a human dispatcher; it instantly shoots a WebSocket `RELOCATE` directive back down to the idle physical hardware to pre-position the fleet.
 
-Polaris isn't just a map showing where your fleet *is*—it's an intelligent engine deciding where your fleet *needs to be*.
+Polaris isn't just a map showing where your fleet *is* it's an intelligent engine deciding where your fleet *needs to be*.
 
 ## ✨ Key Features
 

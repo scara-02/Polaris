@@ -4,8 +4,6 @@ Polaris is a distributed, event-driven microservices platform designed to ingest
 
 Built as a high-performance alternative to traditional batch-processing fleet managers, Polaris leverages a custom in-memory spatial engine and stream-processing architecture to enable **autonomous,  fleet routing and predictive demand balancing**.
 
----
-
 ## The Core Concept
 
 As logistics, ride-sharing, and drone delivery networks scale, they face a massive data bottleneck. Tens of thousands of vehicles continuously broadcast their GPS coordinates, speeds, and battery levels every second.
@@ -17,7 +15,7 @@ As logistics, ride-sharing, and drone delivery networks scale, they face a massi
 
 Polaris isn't just a map showing where your fleet *is* it's an intelligent engine deciding where your fleet *needs to be*.
 
-## ✨ Key Features
+## Key Features
 
 * **High-Throughput Ingestion Pipeline:** Utilizes **Redis Streams** as a "shock absorber" to decouple live WebSocket traffic from heavy database disk I/O.
 * **Custom Spatial Engine:** A thread-safe, in-memory **QuadTree** algorithm written in Go enables lightning-fast geographical querying and exact Earth-curvature (Haversine) routing, bypassing slow database queries.
@@ -26,9 +24,7 @@ Polaris isn't just a map showing where your fleet *is* it's an intelligent engin
 * **Predictive AI Clustering:** Uses SQL-based clustering on historical PostgreSQL data to predict future demand hotspots and pre-position fleet assets.
 * **Live Command Center:** A **React/TypeScript** frontend featuring `Leaflet.js` map rendering, dynamic heatmaps, and `Chart.js` telemetry throughput monitoring.
 
----
-
-## 🏗️ System Architecture
+## System Architecture
 
 Polaris is split into three highly scalable layers:
 

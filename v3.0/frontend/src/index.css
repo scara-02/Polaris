@@ -1,111 +1,285 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════
+   POLARIS v3.0 — Design System
+   
+   Color Contrast Ratios (against --bg-base #0a0e1a):
+   - --text-primary   #f0f4ff  → 16.8:1 (AAA)
+   - --text-secondary #a0aec8  →  7.9:1 (AAA)
+   - --text-tertiary  #6a7a96  →  4.6:1 (AA for large text only)
+   - --accent-violet  #a78bfa  →  6.2:1 (AA)
+   - --accent-cyan    #22d3a8  →  8.1:1 (AAA)
+   - --accent-coral   #ff7b7b  →  5.8:1 (AA)
+   ═══════════════════════════════════════════════════════════════ */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* ── Background Layers ── */
+  --bg-base: #0a0e1a;
+  --bg-surface: #0f1424;
+  --bg-elevated: #151c30;
+  --bg-hover: #1c2540;
+  --bg-active: #222d4a;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* ── Border ── */
+  --border-subtle: #1a2240;
+  --border-default: #242f52;
+  --border-accent: rgba(167, 139, 250, 0.3);
+  --border-glow: rgba(167, 139, 250, 0.5);
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* ── Text ── */
+  --text-primary: #f0f4ff;
+  --text-secondary: #a0aec8;
+  --text-tertiary: #6a7a96;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  /* ── Accent Colors ── */
+  --accent-violet: #a78bfa;
+  --accent-violet-dim: rgba(167, 139, 250, 0.15);
+  --accent-violet-glow: rgba(167, 139, 250, 0.4);
+  --accent-cyan: #22d3a8;
+  --accent-cyan-dim: rgba(34, 211, 168, 0.12);
+  --accent-cyan-glow: rgba(34, 211, 168, 0.4);
+  --accent-coral: #ff7b7b;
+  --accent-coral-dim: rgba(255, 123, 123, 0.12);
+  --accent-amber: #fbbf24;
+  --accent-blue: #60a5fa;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-glow-violet: 0 0 20px rgba(167, 139, 250, 0.15), 0 0 60px rgba(167, 139, 250, 0.05);
+  --shadow-glow-cyan: 0 0 20px rgba(34, 211, 168, 0.15), 0 0 60px rgba(34, 211, 168, 0.05);
+
+  /* ── Typography ── */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  /* ── Transitions ── */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fast: 150ms var(--ease-out-expo);
+  --transition-normal: 250ms var(--ease-out-expo);
+  --transition-slow: 400ms var(--ease-out-expo);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+/* ── Global Reset ── */
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+#root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+/* ── Scrollbar Styling ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* ── Leaflet Overrides ── */
+/*
+ * CRITICAL FIX: Tailwind v4 base reset applies:
+ *   img { display: block; height: auto; max-width: 100%; }
+ * This collapses Leaflet tile <img> elements to 0px height, making the map blank.
+ * We must override EVERY Leaflet img to restore natural rendering.
+ */
+.leaflet-container img,
+.leaflet-container img.leaflet-tile,
+.leaflet-tile-container img,
+.leaflet-tile-pane img {
+  display: inline !important;
+  height: auto !important;
+  max-width: none !important;
+  width: auto !important;
+}
+
+/* Ensure the leaflet container fills its parent fully */
+.leaflet-container {
+  background-color: var(--bg-base) !important;
+  width: 100% !important;
+  height: 100% !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* Ensure Leaflet internal layers have correct display */
+.leaflet-layer,
+.leaflet-zoom-animated,
+.leaflet-tile-pane,
+.leaflet-overlay-pane,
+.leaflet-shadow-pane,
+.leaflet-marker-pane,
+.leaflet-tooltip-pane,
+.leaflet-popup-pane {
+  position: absolute !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-lg) !important;
+  font-family: var(--font-sans) !important;
+}
+
+.leaflet-popup-tip {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-default) !important;
+}
+
+.leaflet-popup-content {
+  margin: 12px 16px !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-default) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: var(--bg-hover) !important;
+  color: var(--accent-violet) !important;
+}
+
+/* ── Drone Marker Glow ── */
+.drone-marker {
+  filter: drop-shadow(0 0 8px var(--accent-cyan-glow));
+  transition: filter var(--transition-normal);
+}
+
+.drone-marker:hover {
+  filter: drop-shadow(0 0 16px var(--accent-cyan));
+}
+
+/* ── Animations ── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(167, 139, 250, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px rgba(167, 139, 250, 0.15);
   }
 }
-p {
-  margin: 0;
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+@keyframes terminal-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes grid-flow {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 40px; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s var(--ease-out-expo) both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s var(--ease-out-expo) both;
+}
+
+/* ── Stagger children animation ── */
+.stagger-children > * {
+  animation: fadeInUp 0.4s var(--ease-out-expo) both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+
+/* ── Utility: Glass ── */
+.glass {
+  background: rgba(15, 20, 36, 0.85);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid var(--border-subtle);
+}
+
+.glass-strong {
+  background: rgba(15, 20, 36, 0.92);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid var(--border-default);
+}
+
+/* ── Grid Background Pattern ── */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(167, 139, 250, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Text Gradient ── */
+.text-gradient-violet {
+  background: linear-gradient(135deg, #a78bfa, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #22d3a8, #34d399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

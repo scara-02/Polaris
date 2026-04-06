@@ -142,7 +142,15 @@ func main() {
 
 	ingestionHandler := handler.NewIngestionHandler(redisAdapter, registry)
 	router.GET("/ws/telemetry", ingestionHandler.HandleIoTConnection)
-
+	router.GET("/api/demand/forecast", func(c *gin.Context) {
+        payload, err := FetchRiderForecast() // Ensure this helper is defined below
+        if err != nil {
+            slog.Error("GNN sidecar connection failed", "error", err)
+            c.JSON(503, gin.H{"error": "GNN sidecar unavailable"})
+            return
+        }
+        c.JSON(200, payload)
+    })
 	port := ":6080"
 	slog.Info("Gateway active. Listening for IoT WebSockets", "port", port)
 	router.Run(port)

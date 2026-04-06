@@ -20,16 +20,61 @@ services:
     volumes:
       - polaris_pg_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Auto-runs schema on first boot
-
-  # 3. THE LOCAL ROUTING ENGINE
-  osrm:
-    image: osrm/osrm-backend
-    container_name: polaris_osrm_v3
+  spatial-engine:
+    build:
+      context: ../            # Points to the v3.0 root
+      dockerfile: Dockerfile  # Uses the root Dockerfile
+      args:
+        - SERVICE_NAME=engine # Tells Docker to build cmd/engine
+    container_name: polaris_engine_v3
     ports:
-      - "5000:5000"
-    command: osrm-routed --algorithm mld /data/chennai-metro.osrm
+      - "6081:6081"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgres://polaris_user:polaris_password@postgres:5432/polaris_core?sslmode=disable
+    depends_on:
+      - redis
+      - postgres
+
+  gateway:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+      args:
+        - SERVICE_NAME=gateway # Tells Docker to build cmd/gateway
+    container_name: polaris_gateway_v3
+    ports:
+      - "6080:6080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - ENGINE_URL=http://spatial-engine:6081
+    depends_on:
+      - redis
+      - spatial-engine
+  # 3. THE LOCAL ROUTING ENGINE
+  # osrm:
+  #   image: osrm/osrm-backend
+  #   container_name: polaris_osrm_v3
+  #   ports:
+  #     - "5000:5000"
+  #   command: osrm-routed --algorithm mld /data/chennai-metro.osrm
+  #   volumes:
+  #     - ../../chennai_map:/data
+  gnn-sidecar:
+    build:
+      context: E:\ML_PROJECTS\POlaris\Polaris\v3.0\gnn_sidecar          # path relative to docker-compose.yml
+      dockerfile: Dockerfile
+    ports:
+      - "5050:5050"
+    environment:
+      - REDIS_HOST=redis               # matches the redis service name below
+    depends_on:
+      - redis
+      - spatial-engine
     volumes:
-      - ../../chennai_map:/data
+      - ../gnn_sidecar/checkpoints:/app/checkpoints
+    restart: unless-stopped
 
 volumes:
   polaris_pg_data:
+

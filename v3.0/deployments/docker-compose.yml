@@ -62,7 +62,7 @@ services:
   #     - ../../chennai_map:/data
   gnn-sidecar:
     build:
-      context: E:\ML_PROJECTS\POlaris\Polaris\v3.0\gnn_sidecar          # path relative to docker-compose.yml
+      context: ../gnn_sidecar          # relative path to gnn_sidecar
       dockerfile: Dockerfile
     ports:
       - "5050:5050"

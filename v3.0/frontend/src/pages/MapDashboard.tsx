@@ -116,7 +116,7 @@ export default function MapDashboard() {
               .addTo(hotspotsLayer);
           });
           setHotZoneCount(count);
-          console.log('Rebalancing Data:', json.raw_rebalance);
+          console.log('Rebalancing Data:', json.meta);
         }
       } catch (err) {
         console.error('AI fetch failed', err);

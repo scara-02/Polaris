@@ -34,7 +34,7 @@ func (r *RedisCommander) SendCommand(nodeID string, payload interface{}) error {
 	data, _ := json.Marshal(msg)
 	return r.client.Publish(context.Background(), "telemetry:commands", string(data)).Err()
 }
-// Define the coordinates for the 20 Polaris zones on the backend
+// Define the coordinates for the 15 Polaris Chennai zones
 // PredictedZone represents a demand hotspot with real-world coordinates
 type PredictedZone struct {
 	ID       int     `json:"id"`
@@ -60,17 +60,29 @@ type HydratedZone struct {
 	Status   string  `json:"status"`
 	RadiusKm float64 `json:"radius_km"`
 }
+// 15 real Chennai zones matching Traffic_15nodes.csv
+// 0=T_Nagar, 1=Anna_Nagar, 2=Adyar, 3=OMR, 4=Velachery,
+// 5=Mylapore, 6=Guindy, 7=Nungambakkam, 8=Egmore, 9=Perambur,
+// 10=Royapettah, 11=Thiruvanmiyur, 12=Porur, 13=Chromepet, 14=Tambaram
 var polarisZones = []struct {
 	Lat float64
 	Lon float64
 }{
-	{13.0827, 80.2707}, {13.0102, 80.2553}, {12.9716, 80.2186}, 
-	{13.0475, 80.2089}, {12.9915, 80.1925}, {13.0500, 80.2000},
-	{13.0600, 80.2100}, {13.0700, 80.2200}, {13.0800, 80.2300},
-	{13.0900, 80.2400}, {13.1000, 80.2500}, {13.1100, 80.2600},
-	{13.1200, 80.2700}, {13.1300, 80.2800}, {13.1400, 80.2900},
-	{13.1500, 80.3000}, {13.1600, 80.3100}, {13.1700, 80.3200},
-	{13.1800, 80.3300}, {13.1900, 80.3400},
+	{13.0418, 80.2341}, // 0  T_Nagar
+	{13.0850, 80.2101}, // 1  Anna_Nagar
+	{13.0012, 80.2565}, // 2  Adyar
+	{12.9610, 80.2425}, // 3  OMR_Thoraipakkam
+	{13.0067, 80.2206}, // 4  Velachery
+	{13.0368, 80.2676}, // 5  Mylapore
+	{13.0067, 80.2206}, // 6  Guindy
+	{13.0569, 80.2425}, // 7  Nungambakkam
+	{13.0732, 80.2609}, // 8  Egmore
+	{13.1070, 80.2320}, // 9  Perambur
+	{13.0500, 80.2600}, // 10 Royapettah
+	{12.9830, 80.2594}, // 11 Thiruvanmiyur
+	{13.0382, 80.1574}, // 12 Porur
+	{12.9516, 80.1462}, // 13 Chromepet
+	{12.9249, 80.1378}, // 14 Tambaram
 }
 
 func main() {

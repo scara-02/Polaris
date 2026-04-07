@@ -20,6 +20,8 @@ Usage
   See __main__ block at the bottom for a quick synthetic demo.
 """
 import os
+import csv
+import math
 import redis
 import torch
 import torch.nn as nn
@@ -28,13 +30,13 @@ from torch_geometric.nn import GATConv
 from torch_geometric.data import Data, Batch
 import redis as redis_lib
 import numpy as np
-from flask import Flask, jsonify # <--- ADD THIS LINE
+from flask import Flask, jsonify
 from datetime import datetime
 # connects to the same Redis your Go services use
 _redis = redis_lib.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=6379, db=0)
 
-NUM_ZONES     = 20   # match your actual zone count
-NODE_FEATURES = 7
+NUM_ZONES     = 15   # 15 real Chennai zone nodes
+NODE_FEATURES = 7    # Total, CarCount, BikeCount, BusCount, TruckCount, hour_sin, hour_cos
 T_WINDOW      = 12
 
 def _latest_window_stub():
@@ -72,6 +74,70 @@ def _latest_window_stub():
             rows = rows[-T_WINDOW:]  # keep most recent T_WINDOW
             tensor[zid, :len(rows), :] = torch.tensor(rows, dtype=torch.float)
     return tensor
+
+
+def load_traffic_csv(path: str, num_zones: int = NUM_ZONES,
+                     num_features: int = NODE_FEATURES) -> torch.Tensor:
+    """
+    Load the multi-node Traffic CSV into a tensor.
+
+    The CSV has columns:
+      zone_id, zone_name, lat, lon, Time, Date, Day of the week,
+      CarCount, BikeCount, BusCount, TruckCount, Total, Traffic Situation
+
+    We map to 7 node features:
+      [Total, CarCount, BikeCount, BusCount, TruckCount, hour_sin, hour_cos]
+
+    Returns
+    ───────
+    (num_zones, total_timesteps, num_features) tensor
+    Also returns zone_coords list of (lat, lon) tuples.
+    """
+    # Read all rows grouped by zone_id
+    zone_rows: dict[int, list] = {}
+    zone_coords: dict[int, tuple[float, float]] = {}
+
+    with open(path, "r", newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            zid = int(row["zone_id"])
+            if zid >= num_zones:
+                continue
+
+            # Parse time for cyclical encoding
+            time_str = row["Time"].strip()
+            try:
+                t = datetime.strptime(time_str, "%I:%M:%S %p")
+            except ValueError:
+                t = datetime.strptime(time_str, "%H:%M:%S")
+            hour_frac = t.hour + t.minute / 60.0
+            hour_sin = math.sin(2 * math.pi * hour_frac / 24.0)
+            hour_cos = math.cos(2 * math.pi * hour_frac / 24.0)
+
+            features = [
+                float(row["Total"]),
+                float(row["CarCount"]),
+                float(row["BikeCount"]),
+                float(row["BusCount"]),
+                float(row["TruckCount"]),
+                hour_sin,
+                hour_cos,
+            ]
+            zone_rows.setdefault(zid, []).append(features)
+            if zid not in zone_coords:
+                zone_coords[zid] = (float(row["lat"]), float(row["lon"]))
+
+    # Find the minimum timestep count across zones
+    min_steps = min(len(rows) for rows in zone_rows.values())
+    print(f"[CSV] Loaded {len(zone_rows)} zones, {min_steps} timesteps each")
+
+    tensor = torch.zeros(num_zones, min_steps, num_features)
+    for zid, rows in zone_rows.items():
+        rows = rows[:min_steps]  # truncate to uniform length
+        tensor[zid] = torch.tensor(rows, dtype=torch.float)
+
+    coords = [(zone_coords.get(i, (0.0, 0.0))) for i in range(num_zones)]
+    return tensor, coords
 
 
 # ──────────────────────────────────────────────
@@ -551,16 +617,23 @@ class PolarisPredictor:
 # ──────────────────────────────────────────────
 import sys
 
-# ── Fixed Chennai zone graph – built once at module load ──────────────
-_SERVE_ZONE_COORDS = [
-    (13.0827, 80.2707), (13.0102, 80.2553), (12.9716, 80.2186),
-    (13.0475, 80.2089), (12.9915, 80.1925), (13.0500, 80.2000),
-    (13.0600, 80.2100), (13.0700, 80.2200), (13.0800, 80.2300),
-    (13.0900, 80.2400), (13.1000, 80.2500), (13.1100, 80.2600),
-    (13.1200, 80.2700), (13.1300, 80.2800), (13.1400, 80.2900),
-    (13.1500, 80.3000), (13.1600, 80.3100), (13.1700, 80.3200),
-    (13.1800, 80.3300), (13.1900, 80.3400),
-]
+# ── Load real traffic data from CSV ───────────────────────────────────
+_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints", "Traffic_15nodes.csv")
+
+if os.path.exists(_CSV_PATH):
+    _traffic_tensor, _SERVE_ZONE_COORDS = load_traffic_csv(_CSV_PATH, num_zones=NUM_ZONES)
+    print(f"[GNN] Loaded traffic data: {_traffic_tensor.shape}")
+else:
+    print(f"[GNN] WARNING – no CSV at {_CSV_PATH}, using zero tensor")
+    _traffic_tensor = torch.zeros(NUM_ZONES, 96, NODE_FEATURES)  # ~1 day fallback
+    _SERVE_ZONE_COORDS = [
+        (13.0418, 80.2341), (13.0850, 80.2101), (13.0012, 80.2565),
+        (12.9610, 80.2425), (13.0067, 80.2206), (13.0368, 80.2676),
+        (13.0067, 80.2206), (13.0569, 80.2425), (13.0732, 80.2609),
+        (13.1070, 80.2320), (13.0500, 80.2600), (12.9830, 80.2594),
+        (13.0382, 80.1574), (12.9516, 80.1462), (12.9249, 80.1378),
+    ]
+
 _serve_edge_index, _serve_edge_attr = build_zone_graph(_SERVE_ZONE_COORDS, radius_km=3.0)
 
 # ── Model – initialised at module level so Flask routes can use it ─────
@@ -570,7 +643,7 @@ _serve_model = PolarisDemandGNN(
     horizon=6,
 )
 
-# Checkpoint path – rename the file to remove the space if needed
+# Checkpoint path
 _CKPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints", "demand_gnn_best.pt")
 if os.path.exists(_CKPT_PATH):
     _serve_model.load_state_dict(torch.load(_CKPT_PATH, map_location="cpu"))
@@ -588,42 +661,53 @@ CORS(app)
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"model": "PolarisDemandGNN", "status": "ok"})
+    return jsonify({"model": "PolarisDemandGNN", "status": "ok", "zones": NUM_ZONES})
 
 
 @app.route("/demand/forecast", methods=["GET"])
 def forecast():
     now = datetime.now()
-    time_index = (now.minute * 6) + (now.second // 10)
+    total_steps = _traffic_tensor.shape[1]
 
-    num_zones    = NUM_ZONES
-    window_size  = T_WINDOW
-    num_features = NODE_FEATURES
+    # Map current time to an index in the traffic data
+    # Each row is a 15-min interval; 96 intervals per day
+    intervals_per_day = 96
+    current_interval = (now.hour * 4) + (now.minute // 15)
+    # Use day-of-week offset to pick from the multi-day dataset
+    day_offset = (now.weekday() * intervals_per_day) % total_steps
+    start_idx = (day_offset + current_interval) % (total_steps - T_WINDOW)
 
-    dynamic_input = torch.zeros((num_zones, window_size, num_features))
-    for t in range(window_size):
-        peak_zone = (time_index + t) % num_zones
-        dynamic_input[peak_zone, t, 0]                   = 1.0
-        dynamic_input[(peak_zone - 1) % num_zones, t, 0] = 0.5
-        dynamic_input[(peak_zone + 1) % num_zones, t, 0] = 0.5
+    # Extract the real traffic window from CSV data
+    traffic_input = _traffic_tensor[:, start_idx : start_idx + T_WINDOW, :]
 
     try:
-        result_dict = predictor.predict(dynamic_input)
+        result_dict = predictor.predict(traffic_input)
         hot_zones   = result_dict["hot_zones"]
 
+        # Build rebalance suggestions from cold → hot zones
         rebalance_data = [
             {
-                "from_zone": (z + 10) % num_zones,
+                "from_zone": result_dict["rebalance"][i][0] if i < len(result_dict["rebalance"]) else 0,
                 "to_zone":   z,
                 "priority":  "HIGH" if i < 2 else "NORMAL",
             }
             for i, z in enumerate(hot_zones)
         ]
 
-        print(f"✅ GNN | {now.strftime('%H:%M:%S')} | hot_zones={hot_zones}")
+        # Include zone coordinates in the response for the frontend map
+        zone_info = [
+            {"zone_id": i, "lat": _SERVE_ZONE_COORDS[i][0], "lon": _SERVE_ZONE_COORDS[i][1]}
+            for i in range(NUM_ZONES)
+        ]
+
+        print(f"✅ GNN | {now.strftime('%H:%M:%S')} | window=[{start_idx}:{start_idx+T_WINDOW}] | hot_zones={hot_zones}")
         return jsonify({
             "status": "success",
-            "data":   {"hot_zones": hot_zones, "rebalance": rebalance_data},
+            "data":   {
+                "hot_zones":  hot_zones,
+                "rebalance":  rebalance_data,
+                "zones":      zone_info,
+            },
         })
 
     except Exception as exc:
